@@ -1,0 +1,37 @@
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rasi-electricals",
+          "appId": "1:114554009961:android:3cc7daffd92e35c1c0a5f8",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rasi-electricals",
+          "configurations": {
+            "android": "1:114554009961:android:3cc7daffd92e35c1c0a5f8",
+            "ios": "1:114554009961:ios:0f7a6de3da5d4119c0a5f8",
+            "web": "1:114554009961:web:1a42b4854c434303c0a5f8"
+          }
+        }
+      }
+    }
+  }
+}

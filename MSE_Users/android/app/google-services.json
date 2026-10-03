@@ -1,0 +1,83 @@
+{
+  "project_info": {
+    "project_number": "114554009961",
+    "firebase_url": "https://rasi-electricals-default-rtdb.firebaseio.com",
+    "project_id": "rasi-electricals",
+    "storage_bucket": "rasi-electricals.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114554009961:android:3cc7daffd92e35c1c0a5f8",
+        "android_client_info": {
+          "package_name": "com.rasielectricals.customer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "114554009961-c7to1c1dg3rdj89ppd5erkd6ehpuqn4o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDl_VA_spck5PJy7yChcNrg8vGjGRz_kxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "114554009961-c7to1c1dg3rdj89ppd5erkd6ehpuqn4o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "114554009961-7eh704rra3o1qr0csqq2ouq4rbeqrlct.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rasielectricals.rasiElectricals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114554009961:android:22b81a006aa2ec28c0a5f8",
+        "android_client_info": {
+          "package_name": "com.rasielectricals.rasi_electricals"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "114554009961-c7to1c1dg3rdj89ppd5erkd6ehpuqn4o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDl_VA_spck5PJy7yChcNrg8vGjGRz_kxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "114554009961-c7to1c1dg3rdj89ppd5erkd6ehpuqn4o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "114554009961-7eh704rra3o1qr0csqq2ouq4rbeqrlct.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rasielectricals.rasiElectricals"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
