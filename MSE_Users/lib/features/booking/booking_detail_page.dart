@@ -229,7 +229,7 @@ class BookingDetailPage extends StatelessWidget {
                   CircleAvatar(
                     radius: 14,
                     backgroundColor: i <= currentIndex
-                        ? const Color(0xFF1976D2)
+                        ? const Color(0xFF0F2C59)
                         : Colors.grey.shade300,
                     child: Icon(
                       i <= currentIndex ? Icons.check : Icons.circle,
@@ -247,7 +247,7 @@ class BookingDetailPage extends StatelessWidget {
                           ? FontWeight.bold
                           : FontWeight.normal,
                       color: i <= currentIndex
-                          ? const Color(0xFF1976D2)
+                          ? const Color(0xFF0F2C59)
                           : Colors.grey,
                     ),
                   ),
@@ -259,7 +259,7 @@ class BookingDetailPage extends StatelessWidget {
                 width: 16,
                 height: 2,
                 color: i < currentIndex
-                    ? const Color(0xFF1976D2)
+                    ? const Color(0xFF0F2C59)
                     : Colors.grey.shade300,
               ),
           ],
@@ -299,11 +299,11 @@ class BookingDetailPage extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE3F2FD),
+                          color: const Color(0xFF0F2C59).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.electrical_services,
-                            color: Color(0xFF1976D2), size: 32),
+                            color: Color(0xFF0F2C59), size: 32),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -325,7 +325,7 @@ class BookingDetailPage extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1976D2))),
+                              color: Color(0xFF0F2C59))),
                     ],
                   ),
                 ),

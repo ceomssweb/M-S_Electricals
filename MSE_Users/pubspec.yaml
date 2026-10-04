@@ -40,6 +40,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - lib/assets/logo/
 
 dependency_overrides:
   path_provider_foundation: 2.3.2

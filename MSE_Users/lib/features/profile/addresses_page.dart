@@ -228,7 +228,7 @@ class AddressesPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   side: BorderSide(
                     color: a.isDefault
-                        ? const Color(0xFF1976D2)
+                        ? const Color(0xFF0F2C59)
                         : Colors.black12,
                     width: a.isDefault ? 2 : 1,
                   ),
@@ -246,7 +246,7 @@ class AddressesPage extends StatelessWidget {
                                 : a.label == 'Home'
                                     ? Icons.home
                                     : Icons.location_on,
-                            color: const Color(0xFF1976D2),
+                            color: const Color(0xFF0F2C59),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -260,7 +260,7 @@ class AddressesPage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE3F2FD),
+                                color: const Color(0xFF0F2C59).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Text(
@@ -268,7 +268,7 @@ class AddressesPage extends StatelessWidget {
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1976D2)),
+                                    color: Color(0xFF0F2C59)),
                               ),
                             ),
                           ],

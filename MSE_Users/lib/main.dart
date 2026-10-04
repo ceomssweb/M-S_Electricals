@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -55,30 +57,60 @@ class RasiCustomerApp extends StatelessWidget {
   }
 }
 
+class AppColors {
+  static const Color primary = Color(0xFF0F2C59);       // Deep Navy Blue
+  static const Color primaryLight = Color(0xFF1E3A8A);  // Medium Navy
+  static const Color accent = Color(0xFFEE5922);        // Electric Orange
+  static const Color accentLight = Color(0xFFFFF1EB);   // Soft Orange Tint
+  static const Color background = Color(0xFFF8FAFC);    // Off-white
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF1E293B);
+  static const Color textSecondary = Color(0xFF64748B);
+  static const Color border = Color(0xFFE2E8F0);
+}
+
 ThemeData _buildTheme() {
   final base = ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1976D2)),
-    scaffoldBackgroundColor: const Color(0xFFF7F9FC),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      primary: AppColors.primary,
+      secondary: AppColors.accent,
+      surface: AppColors.surface,
+    ),
+    scaffoldBackgroundColor: AppColors.background,
   );
   return base.copyWith(
     textTheme: GoogleFonts.interTextTheme(base.textTheme),
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
-      foregroundColor: Color(0xFF1F2937),
+      foregroundColor: AppColors.textPrimary,
       elevation: 0,
       centerTitle: true,
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.border),
+      ),
       color: Colors.white,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(52),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.accent,
+        side: const BorderSide(color: AppColors.accent, width: 1.5),
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
@@ -93,7 +125,6 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
         final loc = state.matchedLocation;
         final isAuthRoute = loc == '/login' || loc == '/register';
         if (loc == '/splash') return null;
-        if (!loggedIn && !isAuthRoute) return '/login';
         if (loggedIn && isAuthRoute) return '/home';
         return null;
       },
@@ -159,8 +190,7 @@ class _SplashRedirectorState extends State<_SplashRedirector> {
     super.initState();
     Future.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
-      final auth = context.read<AuthState>();
-      context.go(auth.loggedIn ? '/home' : '/login');
+      context.go('/home');
     });
   }
 
@@ -170,7 +200,12 @@ class _SplashRedirectorState extends State<_SplashRedirector> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('⚡', style: TextStyle(fontSize: 72)),
+              Image.asset(
+                'lib/assets/logo/M&S.PNG',
+                height: 90,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Text('⚡', style: TextStyle(fontSize: 72)),
+              ),
               const SizedBox(height: 16),
               Text('M&S Electricals',
                   style: Theme.of(context)
@@ -199,63 +234,241 @@ class _LoginPageState extends State<LoginPage> {
   final _email = TextEditingController();
   final _pwd = TextEditingController();
   bool _busy = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pwd.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ListView(
-            children: [
-              const SizedBox(height: 40),
-              const Text('⚡', style: TextStyle(fontSize: 64)),
-              const SizedBox(height: 16),
-              Text('Welcome back',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
-              const Text('Sign in to book electrical services',
-                  style: TextStyle(color: Colors.black54)),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _email,
-                decoration: const InputDecoration(
-                    labelText: 'Email', border: OutlineInputBorder()),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+                tooltip: 'Back',
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
+                },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _pwd,
-                obscureText: true,
-                decoration: const InputDecoration(
-                    labelText: 'Password', border: OutlineInputBorder()),
-              ),
-              if (auth.error != null) ...[
-                const SizedBox(height: 12),
-                Text(auth.error!, style: const TextStyle(color: Colors.red)),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Logo
+                Center(
+                  child: Image.asset(
+                    'lib/assets/logo/M&S.PNG',
+                    height: 80,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.bolt, color: AppColors.primary, size: 32),
+                          SizedBox(width: 8),
+                          Text('M&S Electricals',
+                              style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  'Welcome Back',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Sign in to manage and book electrical services',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(height: 32),
+
+                // Form Container
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email Address',
+                          hintText: 'name@example.com',
+                          prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _pwd,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outlined, color: AppColors.primary),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                        ),
+                      ),
+                      if (auth.error != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  auth.error!,
+                                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  setState(() => _busy = true);
+                                  await auth.signInWithEmail(
+                                      _email.text.trim(), _pwd.text);
+                                  if (mounted) setState(() => _busy = false);
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _busy
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2.5),
+                                )
+                              : const Text(
+                                  'Sign In',
+                                  style: TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account? ",
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    GestureDetector(
+                      onTap: () => context.push('/register'),
+                      child: const Text(
+                        'Create an account',
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _busy
-                    ? null
-                    : () async {
-                        setState(() => _busy = true);
-                        await auth.signInWithEmail(
-                            _email.text.trim(), _pwd.text);
-                        if (mounted) setState(() => _busy = false);
-                      },
-                child: _busy
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Sign in'),
-              ),
-              TextButton(
-                onPressed: () => context.go('/register'),
-                child: const Text('New here? Create an account'),
-              ),
-            ],
+            ),
           ),
+        ),
+          ],
         ),
       ),
     );
@@ -273,56 +486,255 @@ class _RegisterPageState extends State<RegisterPage> {
   final _email = TextEditingController();
   final _pwd = TextEditingController();
   bool _busy = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _pwd.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ListView(
-            children: [
-              TextField(
-                controller: _name,
-                decoration: const InputDecoration(
-                    labelText: 'Full name', border: OutlineInputBorder()),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+                tooltip: 'Back',
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
+                },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _email,
-                decoration: const InputDecoration(
-                    labelText: 'Email', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _pwd,
-                obscureText: true,
-                decoration: const InputDecoration(
-                    labelText: 'Password (min 6)',
-                    border: OutlineInputBorder()),
-              ),
-              if (auth.error != null) ...[
-                const SizedBox(height: 12),
-                Text(auth.error!, style: const TextStyle(color: Colors.red)),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Image.asset(
+                    'lib/assets/logo/M&S.PNG',
+                    height: 70,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'M&S Electricals',
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Create Account',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Join M&S Electricals for expert electrical services',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(height: 28),
+
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: _name,
+                        decoration: InputDecoration(
+                          labelText: 'Full Name',
+                          hintText: 'John Doe',
+                          prefixIcon: const Icon(Icons.person_outlined, color: AppColors.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email Address',
+                          hintText: 'name@example.com',
+                          prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _pwd,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password (min 6 chars)',
+                          prefixIcon: const Icon(Icons.lock_outlined, color: AppColors.primary),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                        ),
+                      ),
+                      if (auth.error != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  auth.error!,
+                                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  setState(() => _busy = true);
+                                  await auth.registerWithEmail(
+                                      _email.text.trim(), _pwd.text, _name.text.trim());
+                                  if (mounted) setState(() => _busy = false);
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _busy
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2.5),
+                                )
+                              : const Text(
+                                  'Create Account',
+                                  style: TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Already have an account? ',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    GestureDetector(
+                      onTap: () => context.push('/login'),
+                      child: const Text(
+                        'Sign in',
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _busy
-                    ? null
-                    : () async {
-                        setState(() => _busy = true);
-                        await auth.registerWithEmail(_email.text.trim(),
-                            _pwd.text, _name.text.trim());
-                        if (mounted) setState(() => _busy = false);
-                      },
-                child: _busy
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Create account'),
-              ),
-            ],
+            ),
           ),
+        ),
+          ],
         ),
       ),
     );
@@ -331,9 +743,17 @@ class _RegisterPageState extends State<RegisterPage> {
 
 // HOME SHELL ----------------------------------------------------------------
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends StatefulWidget {
   final Widget child;
   const HomeShell({super.key, required this.child});
+
+  @override
+  State<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<HomeShell> {
+  Timer? _guestPromptTimer;
+  bool _dialogShowing = false;
 
   static const _tabs = [
     ('/home', Icons.home_outlined, Icons.home, 'Home'),
@@ -341,6 +761,114 @@ class HomeShell extends StatelessWidget {
     ('/profile', Icons.person_outline, Icons.person, 'Profile'),
     ('/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Start 2-minute periodic check for guest login prompt
+    _guestPromptTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => _checkAndShowGuestPrompt(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _guestPromptTimer?.cancel();
+    super.dispose();
+  }
+
+  void _checkAndShowGuestPrompt() {
+    if (!mounted || _dialogShowing) return;
+
+    final auth = context.read<AuthState>();
+    if (auth.loggedIn) return;
+
+    final loc = GoRouterState.of(context).matchedLocation;
+    // Do NOT show popup on signin, signup, or splash pages
+    if (loc == '/login' || loc == '/register' || loc == '/splash') return;
+
+    setState(() => _dialogShowing = true);
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        title: Row(
+          children: [
+            Image.asset(
+              'lib/assets/logo/M&S.PNG',
+              height: 32,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.electrical_services,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Sign In to M&S',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Sign in or create an account to easily book electrical services, manage addresses, and track technician dispatches.',
+          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Later',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/register');
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              side: const BorderSide(color: AppColors.accent, width: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Sign Up',
+                style: TextStyle(
+                    color: AppColors.accent, fontWeight: FontWeight.bold)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/login');
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Sign In',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ).then((_) {
+      if (mounted) {
+        setState(() => _dialogShowing = false);
+      }
+    });
+  }
 
   int _indexFor(String location) {
     for (var i = 0; i < _tabs.length; i++) {
@@ -354,15 +882,102 @@ class HomeShell extends StatelessWidget {
     final loc = GoRouterState.of(context).matchedLocation;
     final idx = _indexFor(loc);
     return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
+      body: widget.child,
+      bottomNavigationBar: _CustomTopBorderNavBar(
         selectedIndex: idx,
         onDestinationSelected: (i) => context.go(_tabs[i].$1),
-        destinations: [
-          for (final t in _tabs)
-            NavigationDestination(
-                icon: Icon(t.$2), selectedIcon: Icon(t.$3), label: t.$4),
+        tabs: _tabs,
+      ),
+    );
+  }
+}
+
+class _CustomTopBorderNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<(String, IconData, IconData, String)> tabs;
+
+  const _CustomTopBorderNavBar({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.tabs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.border, width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 62,
+          child: Row(
+            children: [
+              for (int i = 0; i < tabs.length; i++) ...[
+                Expanded(
+                  child: InkWell(
+                    onTap: () => onDestinationSelected(i),
+                    splashColor: AppColors.primary.withValues(alpha: 0.05),
+                    highlightColor: Colors.transparent,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Active Top Border Indicator Line (Electric Orange)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 3.5,
+                          width: i == selectedIndex ? 36 : 0,
+                          decoration: BoxDecoration(
+                            color: i == selectedIndex
+                                ? AppColors.accent
+                                : Colors.transparent,
+                            borderRadius: const BorderRadius.only(
+                              bottomLeft: Radius.circular(2),
+                              bottomRight: Radius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Icon(
+                          i == selectedIndex ? tabs[i].$3 : tabs[i].$2,
+                          color: i == selectedIndex
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                          size: 24,
+                        ),
+                        Text(
+                          tabs[i].$4,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: i == selectedIndex
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                            color: i == selectedIndex
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -405,7 +1020,16 @@ class _ServicesPageState extends State<ServicesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('M&S Electricals'),
+        centerTitle: true,
+        title: Image.asset(
+          'lib/assets/logo/M&S.PNG',
+          height: 38,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Text(
+            'M&S Electricals',
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
@@ -422,7 +1046,7 @@ class _ServicesPageState extends State<ServicesPage> {
           ),
           const Text(
             'What electrical service do you need today?',
-            style: TextStyle(color: Colors.black54),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
 
@@ -432,7 +1056,7 @@ class _ServicesPageState extends State<ServicesPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.black12),
+              border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -443,7 +1067,7 @@ class _ServicesPageState extends State<ServicesPage> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.search, color: Color(0xFF1976D2)),
+                const Icon(Icons.search, color: AppColors.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -454,7 +1078,7 @@ class _ServicesPageState extends State<ServicesPage> {
                     decoration: const InputDecoration(
                       hintText: 'Search wiring, AC repair, lighting...',
                       border: InputBorder.none,
-                      hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
+                      hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                     ),
                   ),
                 ),
@@ -474,7 +1098,7 @@ class _ServicesPageState extends State<ServicesPage> {
           // Category Shortcut Icons
           const Text(
             'Categories & Shortcuts',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -499,19 +1123,19 @@ class _ServicesPageState extends State<ServicesPage> {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF1976D2)
+                          ? AppColors.primary
                           : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isSelected
-                            ? const Color(0xFF1976D2)
-                            : Colors.black12,
+                            ? AppColors.primary
+                            : AppColors.border,
                         width: isSelected ? 2 : 1,
                       ),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF1976D2).withValues(alpha: 0.3),
+                                color: AppColors.primary.withValues(alpha: 0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               )
@@ -1494,17 +2118,17 @@ class _StatTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 22, color: const Color(0xFF1976D2)),
+            Icon(icon, size: 22, color: AppColors.primary),
             const SizedBox(height: 6),
             Text(value,
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             Text(label,
-                style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ],
         ),
       ),
@@ -1518,11 +2142,140 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final notif = context.watch<NotificationService>();
+    final auth = context.watch<AuthState>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          if (auth.loggedIn)
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    child: const Icon(Icons.person,
+                        color: AppColors.primary, size: 28),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          auth.user?.displayName ?? 'Valued Customer',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          auth.user?.email ?? 'Logged in',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => auth.signOut(),
+                    icon: const Icon(Icons.logout, size: 18, color: Colors.red),
+                    label: const Text('Sign Out',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Image.asset(
+                    'lib/assets/logo/M&S.PNG',
+                    height: 48,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.account_circle_outlined,
+                        size: 48,
+                        color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Account & Authentication',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Sign in to book electrical services faster, manage addresses & track status.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => context.push('/login'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Sign In'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => context.push('/register'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            side: const BorderSide(color: AppColors.accent, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Sign Up',
+                              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text('Notifications Preferences',
