@@ -24,11 +24,9 @@
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "rasi-electricals",
+          "projectId": "mselectricals-4cc75",
           "configurations": {
-            "android": "1:114554009961:android:3cc7daffd92e35c1c0a5f8",
-            "ios": "1:114554009961:ios:0f7a6de3da5d4119c0a5f8",
-            "web": "1:114554009961:web:1a42b4854c434303c0a5f8"
+            "web": "1:337897639107:web:25d7f5a4e291b9928c2676"
           }
         }
       }

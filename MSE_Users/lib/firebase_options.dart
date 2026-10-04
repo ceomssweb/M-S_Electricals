@@ -47,14 +47,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBcTXM2ARW8U-5o5uspbR5G0v0kT5JdF58',
-    appId: '1:114554009961:web:1a42b4854c434303c0a5f8',
-    messagingSenderId: '114554009961',
-    projectId: 'rasi-electricals',
-    authDomain: 'rasi-electricals.firebaseapp.com',
-    databaseURL: 'https://rasi-electricals-default-rtdb.firebaseio.com',
-    storageBucket: 'rasi-electricals.firebasestorage.app',
-    measurementId: 'G-6C9K8PKM66',
+    apiKey: 'AIzaSyDmcOM8CKqcpvAJnCLGZk90wSiVRqkPki0',
+    appId: '1:337897639107:web:25d7f5a4e291b9928c2676',
+    messagingSenderId: '337897639107',
+    projectId: 'mselectricals-4cc75',
+    authDomain: 'mselectricals-4cc75.firebaseapp.com',
+    storageBucket: 'mselectricals-4cc75.firebasestorage.app',
+    measurementId: 'G-WG37ZLXPGZ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
