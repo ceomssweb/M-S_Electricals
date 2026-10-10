@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_styles.dart';
 import '../auth/auth_state.dart';
 import 'notification_service.dart';
 
@@ -24,7 +27,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
@@ -43,30 +46,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF1EB),
+                color: AppColors.accentLight,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFEE5922)),
+                border: Border.all(color: AppColors.accent),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Color(0xFFEE5922), size: 28),
+                  const Icon(Icons.info_outline,
+                      color: AppColors.accent, size: 28),
                   const SizedBox(width: 12),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           'Guest Mode Active',
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
-                              color: Color(0xFF1E293B)),
+                              color: AppColors.textPrimary),
                         ),
                         SizedBox(height: 2),
                         Text(
                           'Sign in to sync your live booking alerts & technician status.',
                           style: TextStyle(
-                              fontSize: 12, color: Color(0xFF64748B)),
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -75,7 +79,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     onPressed: () => context.push('/login'),
                     child: const Text('Sign In',
                         style: TextStyle(
-                            color: Color(0xFFEE5922),
+                            color: AppColors.accent,
                             fontWeight: FontWeight.bold)),
                   ),
                 ],
@@ -96,10 +100,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 return ChoiceChip(
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: const Color(0xFF0F2C59),
+                  selectedColor: AppColors.primary,
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF1E293B),
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                   onSelected: (_) {
                     setState(() {
@@ -119,23 +124,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
               children: [
                 // Real-time FCM Test Alert if triggered
                 if (notifService.lastNotificationTitle != null)
-                  Card(
+                  Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    color: const Color(0xFFFFF1EB),
-                    shape: RoundedRectangleBorder(
+                    decoration: BoxDecoration(
+                      color: AppColors.accentLight,
                       borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFFEE5922)),
+                      border: Border.all(color: AppColors.accent),
+                      boxShadow: AppStyles.cardShadow,
                     ),
                     child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFEE5922),
-                        child: const Icon(Icons.bolt, color: Colors.white),
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.accent,
+                        child: Icon(Icons.bolt, color: Colors.white),
                       ),
                       title: Text(
                         notifService.lastNotificationTitle!,
                         style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B)),
+                            color: AppColors.textPrimary),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,15 +150,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           Text(
                             notifService.lastNotificationBody ?? '',
                             style: const TextStyle(
-                                fontSize: 13, color: Color(0xFF475569)),
+                                fontSize: 13, color: AppColors.textSecondary),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             notifService.lastNotificationTime != null
-                                ? dateFormat.format(notifService.lastNotificationTime!)
+                                ? dateFormat.format(
+                                    notifService.lastNotificationTime!)
                                 : 'Just now',
                             style: const TextStyle(
-                                fontSize: 11, color: Color(0xFF94A3B8)),
+                                fontSize: 11, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
@@ -166,7 +173,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       'Book professional wiring, AC repair, lighting, and emergency electrical services directly from the app.',
                   time: 'System • Active',
                   icon: Icons.electric_bolt,
-                  iconColor: const Color(0xFF0F2C59),
+                  iconColor: AppColors.primary,
                   isUnread: true,
                   onTap: () {},
                 ),
@@ -177,7 +184,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       'Facing urgent short circuits or power outages? Tap Help & Support for instant emergency dispatch.',
                   time: '2h ago',
                   icon: Icons.warning_amber_rounded,
-                  iconColor: const Color(0xFFEE5922),
+                  iconColor: AppColors.accent,
                   isUnread: false,
                   onTap: () => context.push('/support'),
                 ),
@@ -188,7 +195,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       'Use code MSTECH10 during booking for 10% off your first electrical repair service.',
                   time: '1d ago',
                   icon: Icons.local_offer_outlined,
-                  iconColor: const Color(0xFFEE5922),
+                  iconColor: AppColors.accent,
                   isUnread: false,
                   onTap: () => context.go('/home'),
                 ),
@@ -199,10 +206,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Send Test Push Alert'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF0F2C59),
-                      side: const BorderSide(color: Color(0xFF0F2C59)),
-                    ),
+                    style: AppStyles.outlinedButton,
                     onPressed: () {
                       notifService.sendTestPushNotification(
                         title: '⚡ M&S Live Alert Test',
@@ -212,7 +216,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Test notification generated!'),
-                          backgroundColor: Color(0xFF0F2C59),
+                          backgroundColor: AppColors.primary,
                         ),
                       );
                     },
@@ -249,12 +253,8 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
+    return Container(
+      decoration: AppStyles.cardDecoration,
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         leading: Stack(
@@ -275,7 +275,7 @@ class _NotificationCard extends StatelessWidget {
                   width: 10,
                   height: 10,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFEE5922),
+                    color: AppColors.accent,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -287,7 +287,7 @@ class _NotificationCard extends StatelessWidget {
           style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 15,
-              color: Color(0xFF1E293B)),
+              color: AppColors.textPrimary),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,12 +295,14 @@ class _NotificationCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               message,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 6),
             Text(
               time,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary),
             ),
           ],
         ),

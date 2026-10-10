@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_styles.dart';
 import '../auth/auth_state.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -75,13 +78,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
               children: [
                 CircleAvatar(
                   radius: 54,
-                  backgroundColor: const Color(0xFFE3F2FD),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
                     (_nameCtrl.text.isNotEmpty)
                         ? _nameCtrl.text[0].toUpperCase()
                         : '👤',
                     style: const TextStyle(
-                        fontSize: 44, fontWeight: FontWeight.bold),
+                        fontSize: 44,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary),
                   ),
                 ),
                 Positioned(
@@ -89,7 +94,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   right: 0,
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFF0F2C59),
+                    backgroundColor: AppColors.primary,
                     child: IconButton(
                       icon: const Icon(Icons.camera_alt,
                           size: 18, color: Colors.white),
@@ -108,39 +113,39 @@ class _EditProfilePageState extends State<EditProfilePage> {
           const SizedBox(height: 32),
           TextField(
             controller: _nameCtrl,
-            decoration: const InputDecoration(
+            decoration: AppStyles.inputDecoration(
               labelText: 'Full Name',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.person_outline),
+              prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _phoneCtrl,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
+            decoration: AppStyles.inputDecoration(
               labelText: 'Phone Number',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.phone_outlined),
+              prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             enabled: false,
             controller: TextEditingController(text: email),
-            decoration: const InputDecoration(
+            decoration: AppStyles.inputDecoration(
               labelText: 'Email Address (Read-only)',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.email_outlined),
-              helperText: 'Email cannot be changed directly',
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
           ),
           const SizedBox(height: 32),
-          FilledButton(
-            onPressed: _busy ? null : _saveProfile,
-            child: _busy
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Save Changes'),
+          SizedBox(
+            height: 50,
+            child: FilledButton(
+              style: AppStyles.filledButton,
+              onPressed: _busy ? null : _saveProfile,
+              child: _busy
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Save Changes'),
+            ),
           ),
         ],
       ),

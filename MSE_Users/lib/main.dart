@@ -29,6 +29,11 @@ import 'features/admin/admin_users_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'core/services/language_service.dart';
 import 'core/services/permission_service.dart';
+import 'core/theme/app_colors.dart';
+import 'core/theme/app_styles.dart';
+import 'core/theme/app_theme.dart';
+import 'features/legal/privacy_policy_page.dart';
+import 'features/legal/terms_conditions_page.dart';
 
 /// Entry point for the customer-facing M&S app.
 Future<void> main() async {
@@ -83,53 +88,7 @@ class AppColors {
   static const Color border = Color(0xFFE2E8F0);
 }
 
-ThemeData _buildTheme() {
-  final base = ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      primary: AppColors.primary,
-      secondary: AppColors.accent,
-      surface: AppColors.surface,
-    ),
-    scaffoldBackgroundColor: AppColors.background,
-  );
-  return base.copyWith(
-    textTheme: GoogleFonts.interTextTheme(base.textTheme),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: AppColors.textPrimary,
-      elevation: 0,
-      centerTitle: true,
-    ),
-    cardTheme: CardThemeData(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      color: Colors.white,
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.accent,
-        side: const BorderSide(color: AppColors.accent, width: 1.5),
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    ),
-  );
-}
+ThemeData _buildTheme() => AppTheme.buildTheme();
 
 GoRouter _buildRouter(AuthState auth) => GoRouter(
       initialLocation: '/splash',
@@ -160,6 +119,14 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
         GoRoute(
             path: '/admin/login',
             builder: (_, __) => const AdminLoginPage()),
+        GoRoute(
+          path: '/privacy-policy',
+          builder: (_, __) => const PrivacyPolicyPage(),
+        ),
+        GoRoute(
+          path: '/terms-conditions',
+          builder: (_, __) => const TermsConditionsPage(),
+        ),
         ShellRoute(
           builder: (_, __, child) => HomeShell(child: child),
           routes: [
@@ -3243,23 +3210,14 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: Text(lang.t('settings_privacy_policy')),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(lang.t('settings_privacy_policy')),
-                  content: const SingleChildScrollView(
-                    child: Text(
-                        'M&S Electricals respects your privacy. All customer location addresses, phone numbers, and booking records are stored securely in encrypted cloud data stores and used strictly for dispatching qualified electrical technicians.'),
-                  ),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Close')),
-                  ],
-                ),
-              );
-            },
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/privacy-policy'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Terms & Conditions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/terms-conditions'),
           ),
         ],
       ),

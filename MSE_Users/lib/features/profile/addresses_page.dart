@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/models/models.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_styles.dart';
 import '../auth/auth_state.dart';
 
 class AddressesPage extends StatelessWidget {
@@ -40,7 +43,9 @@ class AddressesPage extends StatelessWidget {
                     Text(
                       existing == null ? 'Add New Address' : 'Edit Address',
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary),
                     ),
                     const Spacer(),
                     IconButton(
@@ -50,13 +55,10 @@ class AddressesPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: ['Home', 'Work', 'Other'].contains(labelCtrl.text)
+                  initialValue: ['Home', 'Work', 'Other'].contains(labelCtrl.text)
                       ? labelCtrl.text
                       : 'Home',
-                  decoration: const InputDecoration(
-                    labelText: 'Label',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: AppStyles.inputDecoration(labelText: 'Label'),
                   items: const [
                     DropdownMenuItem(value: 'Home', child: Text('🏠 Home')),
                     DropdownMenuItem(value: 'Work', child: Text('🏢 Work')),
@@ -69,26 +71,20 @@ class AddressesPage extends StatelessWidget {
                 const SizedBox(height: 12),
                 TextField(
                   controller: houseCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'House / Flat / Building No.',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: AppStyles.inputDecoration(
+                      labelText: 'House / Flat / Building No.'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: streetCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Street / Area / Colony',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: AppStyles.inputDecoration(
+                      labelText: 'Street / Area / Colony'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: landmarkCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Landmark (Optional)',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: AppStyles.inputDecoration(
+                      labelText: 'Landmark (Optional)'),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -96,10 +92,7 @@ class AddressesPage extends StatelessWidget {
                     Expanded(
                       child: TextField(
                         controller: cityCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'City',
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration: AppStyles.inputDecoration(labelText: 'City'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -107,10 +100,8 @@ class AddressesPage extends StatelessWidget {
                       child: TextField(
                         controller: pinCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Pincode',
-                          border: OutlineInputBorder(),
-                        ),
+                        decoration:
+                            AppStyles.inputDecoration(labelText: 'Pincode'),
                       ),
                     ),
                   ],
@@ -119,10 +110,8 @@ class AddressesPage extends StatelessWidget {
                 TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Contact Phone Number',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: AppStyles.inputDecoration(
+                      labelText: 'Contact Phone Number'),
                 ),
                 const SizedBox(height: 8),
                 CheckboxListTile(
@@ -134,37 +123,44 @@ class AddressesPage extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () async {
-                    if (houseCtrl.text.isEmpty || streetCtrl.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Please enter house number and street')),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    style: AppStyles.filledButton,
+                    onPressed: () async {
+                      if (houseCtrl.text.isEmpty || streetCtrl.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Please enter house number and street')),
+                        );
+                        return;
+                      }
+                      final auth = context.read<AuthState>();
+                      final addr = UserAddress(
+                        id: existing?.id ?? '',
+                        label: labelCtrl.text,
+                        houseNo: houseCtrl.text.trim(),
+                        street: streetCtrl.text.trim(),
+                        landmark: landmarkCtrl.text.trim(),
+                        city: cityCtrl.text.trim(),
+                        pincode: pinCtrl.text.trim(),
+                        phoneNumber: phoneCtrl.text.trim(),
+                        isDefault: isDefault,
                       );
-                      return;
-                    }
-                    final auth = context.read<AuthState>();
-                    final addr = UserAddress(
-                      id: existing?.id ?? '',
-                      label: labelCtrl.text,
-                      houseNo: houseCtrl.text.trim(),
-                      street: streetCtrl.text.trim(),
-                      landmark: landmarkCtrl.text.trim(),
-                      city: cityCtrl.text.trim(),
-                      pincode: pinCtrl.text.trim(),
-                      phoneNumber: phoneCtrl.text.trim(),
-                      isDefault: isDefault,
-                    );
 
-                    if (existing == null) {
-                      await auth.addAddress(addr);
-                    } else {
-                      await auth.updateAddress(addr);
-                    }
+                      if (existing == null) {
+                        await auth.addAddress(addr);
+                      } else {
+                        await auth.updateAddress(addr);
+                      }
 
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                  child: Text(existing == null ? 'Save Address' : 'Update Address'),
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    child:
+                        Text(existing == null ? 'Save Address' : 'Update Address'),
+                  ),
                 ),
               ],
             ),
@@ -181,9 +177,11 @@ class AddressesPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Saved Addresses')),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
         onPressed: () => _showAddressDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Address'),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Add Address',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: StreamBuilder<List<UserAddress>>(
         stream: auth.userAddresses(),
@@ -201,12 +199,17 @@ class AddressesPage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.location_off_outlined,
-                      size: 64, color: Colors.grey),
+                      size: 64, color: AppColors.textSecondary),
                   const SizedBox(height: 16),
                   const Text('No saved addresses yet',
-                      style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      style: TextStyle(
+                          fontSize: 16, color: AppColors.textSecondary)),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: () => _showAddressDialog(context),
                     icon: const Icon(Icons.add),
                     label: const Text('Add your first address'),
@@ -222,16 +225,15 @@ class AddressesPage extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (_, i) {
               final a = list[i];
-              return Card(
-                elevation: a.isDefault ? 2 : 0,
-                shape: RoundedRectangleBorder(
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: a.isDefault
-                        ? const Color(0xFF0F2C59)
-                        : Colors.black12,
+                  border: Border.all(
+                    color: a.isDefault ? AppColors.primary : AppColors.border,
                     width: a.isDefault ? 2 : 1,
                   ),
+                  boxShadow: AppStyles.cardShadow,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -246,7 +248,7 @@ class AddressesPage extends StatelessWidget {
                                 : a.label == 'Home'
                                     ? Icons.home
                                     : Icons.location_on,
-                            color: const Color(0xFF0F2C59),
+                            color: AppColors.primary,
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -260,7 +262,7 @@ class AddressesPage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0F2C59).withValues(alpha: 0.1),
+                                color: AppColors.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Text(
@@ -268,7 +270,7 @@ class AddressesPage extends StatelessWidget {
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F2C59)),
+                                    color: AppColors.primary),
                               ),
                             ),
                           ],
@@ -280,7 +282,7 @@ class AddressesPage extends StatelessWidget {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline,
-                                size: 20, color: Colors.red),
+                                size: 20, color: AppColors.error),
                             onPressed: () async {
                               final confirm = await showDialog<bool>(
                                 context: context,
@@ -297,8 +299,8 @@ class AddressesPage extends StatelessWidget {
                                         onPressed: () =>
                                             Navigator.pop(ctx, true),
                                         child: const Text('Delete',
-                                            style:
-                                                TextStyle(color: Colors.red))),
+                                            style: TextStyle(
+                                                color: AppColors.error))),
                                   ],
                                 ),
                               );
@@ -311,13 +313,15 @@ class AddressesPage extends StatelessWidget {
                       ),
                       const Divider(),
                       Text(a.formattedAddress,
-                          style: const TextStyle(color: Colors.black87)),
+                          style:
+                              const TextStyle(color: AppColors.textPrimary)),
                       if (a.phoneNumber != null && a.phoneNumber!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text('Phone: ${a.phoneNumber}',
                               style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54)),
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary)),
                         ),
                       if (!a.isDefault) ...[
                         const SizedBox(height: 8),

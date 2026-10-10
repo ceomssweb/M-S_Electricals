@@ -2,8 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/config/firestore_config.dart';
 import '../../core/models/models.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_styles.dart';
 import 'booking_service.dart';
 
 class BookingDetailPage extends StatelessWidget {
@@ -13,16 +16,16 @@ class BookingDetailPage extends StatelessWidget {
   Color _statusColor(BookingStatus s) {
     switch (s) {
       case BookingStatus.pending:
-        return Colors.orange;
+        return AppColors.warning;
       case BookingStatus.confirmed:
         return Colors.blue;
       case BookingStatus.assigned:
       case BookingStatus.inProgress:
-        return Colors.indigo;
+        return AppColors.primary;
       case BookingStatus.completed:
-        return Colors.green;
+        return AppColors.success;
       case BookingStatus.cancelled:
-        return Colors.red;
+        return AppColors.error;
     }
   }
 
@@ -31,18 +34,23 @@ class BookingDetailPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Booking'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Cancel Booking',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Please state the reason for cancelling this booking:'),
+            const Text(
+              'Please state the reason for cancelling this booking:',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: reasonCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(
+              decoration: AppStyles.inputDecoration(
+                labelText: 'Reason for Cancellation',
                 hintText: 'e.g. Schedule conflict, changed mind...',
-                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -52,7 +60,7 @@ class BookingDetailPage extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Keep Booking')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () async {
               if (reasonCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +146,7 @@ class BookingDetailPage extends StatelessWidget {
                   return IconButton(
                     icon: Icon(
                       starVal <= rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
+                      color: AppColors.accent,
                       size: 36,
                     ),
                     onPressed: () {
@@ -151,30 +159,35 @@ class BookingDetailPage extends StatelessWidget {
               TextField(
                 controller: commentCtrl,
                 maxLines: 3,
-                decoration: const InputDecoration(
+                decoration: AppStyles.inputDecoration(
+                  labelText: 'Feedback & Rating',
                   hintText: 'Share your feedback on the electrical service...',
-                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () async {
-                  final svc = context.read<BookingService>();
-                  await svc.submitReview(
-                    bookingId: b.id,
-                    serviceId: b.serviceId,
-                    rating: rating,
-                    comment: commentCtrl.text.trim(),
-                  );
-                  if (ctx.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Thank you for your rating!')),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  style: AppStyles.filledButton,
+                  onPressed: () async {
+                    final svc = context.read<BookingService>();
+                    await svc.submitReview(
+                      bookingId: b.id,
+                      serviceId: b.serviceId,
+                      rating: rating,
+                      comment: commentCtrl.text.trim(),
                     );
-                  }
-                },
-                child: const Text('Submit Review'),
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Thank you for your rating!')),
+                      );
+                    }
+                  },
+                  child: const Text('Submit Review'),
+                ),
               ),
             ],
           ),
@@ -194,19 +207,19 @@ class BookingDetailPage extends StatelessWidget {
 
     if (status == BookingStatus.cancelled) {
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.shade200),
+          color: AppColors.error.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
         ),
         child: const Row(
           children: [
-            Icon(Icons.cancel, color: Colors.red),
+            Icon(Icons.cancel, color: AppColors.error),
             SizedBox(width: 8),
             Text('This booking has been cancelled',
                 style:
-                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
           ],
         ),
       );
@@ -216,11 +229,7 @@ class BookingDetailPage extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
-      ),
+      decoration: AppStyles.cardDecoration,
       child: Row(
         children: [
           for (int i = 0; i < steps.length; i++) ...[
@@ -230,8 +239,8 @@ class BookingDetailPage extends StatelessWidget {
                   CircleAvatar(
                     radius: 14,
                     backgroundColor: i <= currentIndex
-                        ? const Color(0xFF0F2C59)
-                        : Colors.grey.shade300,
+                        ? AppColors.primary
+                        : AppColors.border,
                     child: Icon(
                       i <= currentIndex ? Icons.check : Icons.circle,
                       size: 14,
@@ -248,8 +257,8 @@ class BookingDetailPage extends StatelessWidget {
                           ? FontWeight.bold
                           : FontWeight.normal,
                       color: i <= currentIndex
-                          ? const Color(0xFF0F2C59)
-                          : Colors.grey,
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -260,8 +269,8 @@ class BookingDetailPage extends StatelessWidget {
                 width: 16,
                 height: 2,
                 color: i < currentIndex
-                    ? const Color(0xFF0F2C59)
-                    : Colors.grey.shade300,
+                    ? AppColors.primary
+                    : AppColors.border,
               ),
           ],
         ],
@@ -289,46 +298,46 @@ class BookingDetailPage extends StatelessWidget {
           final b = Booking.fromDoc(snap.data!);
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             children: [
-              // Service Header
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F2C59).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.electrical_services,
-                            color: Color(0xFF0F2C59), size: 32),
+              // Service Header Card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppStyles.cardDecoration,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(b.serviceTitle,
-                                style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text('Booking ID: #${b.id.substring(0, 8)}',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.black54)),
-                          ],
-                        ),
+                      child: const Icon(Icons.electrical_services,
+                          color: AppColors.primary, size: 32),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(b.serviceTitle,
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary)),
+                          const SizedBox(height: 4),
+                          Text('Booking ID: #${b.id.substring(0, 8)}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary)),
+                        ],
                       ),
-                      Text('₹${b.amount.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F2C59))),
-                    ],
-                  ),
+                    ),
+                    Text('₹${b.amount.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary)),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -342,13 +351,15 @@ class BookingDetailPage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade200),
+                    border:
+                        Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.mark_email_read, color: Colors.green),
+                      const Icon(Icons.mark_email_read,
+                          color: AppColors.success),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -358,12 +369,12 @@ class BookingDetailPage extends StatelessWidget {
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.green)),
+                                    color: AppColors.success)),
                             Text(
                               b.emailLogMessage ??
                                   'Status update email sent to ${b.emailNotifyAddress ?? 'customer'}',
                               style: const TextStyle(
-                                  fontSize: 11, color: Colors.black87),
+                                  fontSize: 11, color: AppColors.textPrimary),
                             ),
                           ],
                         ),
@@ -374,87 +385,92 @@ class BookingDetailPage extends StatelessWidget {
               const SizedBox(height: 16),
 
               // Booking Details Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Service Info',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                      const Divider(),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppStyles.cardDecoration,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Service Info',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary)),
+                    const Divider(height: 20),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event, color: AppColors.primary),
+                      title: const Text('Scheduled Time'),
+                      subtitle: Text(DateFormat('EEEE, dd MMM yyyy • hh:mm a')
+                          .format(b.scheduledAt)),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.location_on, color: AppColors.primary),
+                      title: const Text('Address'),
+                      subtitle: Text(b.addressLine),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.payment, color: AppColors.primary),
+                      title: const Text('Payment Status'),
+                      subtitle: Text(b.paid ? 'Paid Online' : 'Pending Payment'),
+                      trailing: Icon(
+                        b.paid ? Icons.check_circle : Icons.pending,
+                        color: b.paid ? AppColors.success : AppColors.warning,
+                      ),
+                    ),
+                    if (b.notes != null && b.notes!.isNotEmpty)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.event),
-                        title: const Text('Scheduled Time'),
-                        subtitle: Text(DateFormat('EEEE, dd MMM yyyy • hh:mm a')
-                            .format(b.scheduledAt)),
+                        leading: const Icon(Icons.note, color: AppColors.primary),
+                        title: const Text('Customer Notes'),
+                        subtitle: Text(b.notes!),
                       ),
+                    if (b.cancelReason != null)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.location_on),
-                        title: const Text('Address'),
-                        subtitle: Text(b.addressLine),
+                        leading: const Icon(Icons.info, color: AppColors.error),
+                        title: const Text('Cancellation Reason'),
+                        subtitle: Text(b.cancelReason!),
                       ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.payment),
-                        title: const Text('Payment Status'),
-                        subtitle: Text(b.paid ? 'Paid Online' : 'Pending Payment'),
-                        trailing: Icon(
-                          b.paid ? Icons.check_circle : Icons.pending,
-                          color: b.paid ? Colors.green : Colors.orange,
-                        ),
-                      ),
-                      if (b.notes != null && b.notes!.isNotEmpty)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.note),
-                          title: const Text('Customer Notes'),
-                          subtitle: Text(b.notes!),
-                        ),
-                      if (b.cancelReason != null)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading:
-                              const Icon(Icons.info, color: Colors.redAccent),
-                          title: const Text('Cancellation Reason'),
-                          subtitle: Text(b.cancelReason!),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
 
               // Review Card if rated
               if (b.reviewRating != null)
-                Card(
-                  color: Colors.amber.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Colors.amber),
-                            const SizedBox(width: 8),
-                            Text('Your Rating: ${b.reviewRating} / 5.0',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        if (b.reviewComment != null &&
-                            b.reviewComment!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text('"${b.reviewComment}"',
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentLight,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: AppColors.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.star, color: AppColors.accent),
+                          const SizedBox(width: 8),
+                          Text('Your Rating: ${b.reviewRating} / 5.0',
                               style: const TextStyle(
-                                  fontStyle: FontStyle.italic)),
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary)),
                         ],
+                      ),
+                      if (b.reviewComment != null &&
+                          b.reviewComment!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text('"${b.reviewComment}"',
+                            style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: AppColors.textSecondary)),
                       ],
-                    ),
+                    ],
                   ),
                 ),
 
@@ -467,6 +483,7 @@ class BookingDetailPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
+                        style: AppStyles.outlinedButton,
                         icon: const Icon(Icons.calendar_month),
                         label: const Text('Reschedule'),
                         onPressed: () => _showRescheduleDialog(context, b),
@@ -476,7 +493,12 @@ class BookingDetailPage extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red),
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
                         icon: const Icon(Icons.cancel_outlined),
                         label: const Text('Cancel'),
                         onPressed: () => _showCancelDialog(context, b),
@@ -489,10 +511,14 @@ class BookingDetailPage extends StatelessWidget {
 
               if (b.status == BookingStatus.completed &&
                   b.reviewRating == null) ...[
-                FilledButton.icon(
-                  icon: const Icon(Icons.star),
-                  label: const Text('Rate & Review Service'),
-                  onPressed: () => _showReviewDialog(context, b),
+                SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    style: AppStyles.filledButton,
+                    icon: const Icon(Icons.star),
+                    label: const Text('Rate & Review Service'),
+                    onPressed: () => _showReviewDialog(context, b),
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],

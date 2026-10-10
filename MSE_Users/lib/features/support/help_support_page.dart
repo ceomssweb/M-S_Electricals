@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/config/firestore_config.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_styles.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -38,6 +42,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           'All electrical repair and installation jobs performed by M&S Electricals technicians carry a 30-day service warranty.'
     },
   ];
+
+  @override
+  void dispose() {
+    _subjectCtrl.dispose();
+    _messageCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _launchUrl(String uriString) async {
     final uri = Uri.parse(uriString);
@@ -96,62 +107,130 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Help & Support')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
-          // Contact Channels
-          Card(
-            color: const Color(0xFFE3F2FD),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  const Text('24/7 Electrical Customer Support',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _launchUrl('tel:+919876543210'),
-                        icon: const Icon(Icons.call),
-                        label: const Text('Call'),
+          // 24/7 Contact Channels Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: AppStyles.cardDecoration,
+            child: Column(
+              children: [
+                const Text('24/7 Electrical Customer Support',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => _launchUrl(
-                            'mailto:support@mandselectricals.com?subject=Support%20Request'),
-                        icon: const Icon(Icons.email),
-                        label: const Text('Email'),
+                      onPressed: () => _launchUrl('tel:+919876543210'),
+                      icon: const Icon(Icons.call, size: 18),
+                      label: const Text('Call'),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () =>
-                            _launchUrl('https://wa.me/919876543210'),
-                        icon: const Icon(Icons.chat),
-                        label: const Text('WhatsApp'),
+                      onPressed: () => _launchUrl(
+                          'mailto:support@mandselectricals.com?subject=Support%20Request'),
+                      icon: const Icon(Icons.email, size: 18),
+                      label: const Text('Email'),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                      onPressed: () =>
+                          _launchUrl('https://wa.me/919876543210'),
+                      icon: const Icon(Icons.chat, size: 18),
+                      label: const Text('WhatsApp'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+
+          // Legal Documents Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: AppStyles.cardDecoration,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Legal & Compliance Policies',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.privacy_tip_outlined,
+                      color: AppColors.primary),
+                  title: const Text('Privacy Policy',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text(
+                      'How we protect your personal & location data'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/privacy-policy'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.description_outlined,
+                      color: AppColors.primary),
+                  title: const Text('Terms & Conditions',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Service terms, 18% GST & 30-day warranty'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/terms-conditions'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
 
           // FAQ Accordion
           const Text('Frequently Asked Questions',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
           const SizedBox(height: 12),
           for (final faq in _faqs)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: AppStyles.cardDecoration,
               child: ExpansionTile(
                 title: Text(faq['question']!,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.textPrimary)),
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(faq['answer']!,
-                        style: const TextStyle(color: Colors.black87)),
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            height: 1.4,
+                            fontSize: 13)),
                   ),
                 ],
               ),
@@ -161,30 +240,36 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
 
           // Submit Ticket Form
           const Text('Submit a Query / Issue',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
           const SizedBox(height: 12),
           TextField(
             controller: _subjectCtrl,
-            decoration: const InputDecoration(
+            decoration: AppStyles.inputDecoration(
               labelText: 'Subject',
-              border: OutlineInputBorder(),
+              hintText: 'e.g. Booking inquiry, billing question',
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _messageCtrl,
             maxLines: 4,
-            decoration: const InputDecoration(
+            decoration: AppStyles.inputDecoration(
               labelText: 'Describe your issue or query...',
-              border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _submitTicket,
-            child: _busy
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Submit Support Request'),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 50,
+            child: FilledButton(
+              style: AppStyles.filledButton,
+              onPressed: _busy ? null : _submitTicket,
+              child: _busy
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Submit Support Request'),
+            ),
           ),
         ],
       ),
