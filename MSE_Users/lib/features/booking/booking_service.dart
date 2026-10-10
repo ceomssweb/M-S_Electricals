@@ -138,19 +138,23 @@ class BookingService extends ChangeNotifier {
 
   void disposeRazorpay() => _paymentHandler?.clear();
 
-  /// Creates the booking row and returns its id.
+  /// Creates the booking row with GST breakdown and payment mode selection.
   Future<String> createBooking({
     required String serviceId,
     required String serviceTitle,
     required DateTime scheduledAt,
     required String addressLine,
-    required double amount,
+    required double baseAmount,
+    String paymentMode = 'razorpay', // 'razorpay' or 'cod'
     String? notes,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw StateError('Not signed in');
     }
+
+    final gstAmount = baseAmount * 0.18;
+    final totalPayable = baseAmount + gstAmount;
 
     final email = user.email ?? '';
     final ref = await _db.collection('bookings').add({
@@ -160,8 +164,13 @@ class BookingService extends ChangeNotifier {
       'scheduledAt': Timestamp.fromDate(scheduledAt),
       'addressLine': addressLine,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
-      'amount': amount,
-      'status': BookingStatus.pending.wireValue,
+      'baseAmount': baseAmount,
+      'gstAmount': gstAmount,
+      'amount': totalPayable,
+      'paymentMode': paymentMode,
+      'status': paymentMode == 'cod'
+          ? BookingStatus.confirmed.wireValue
+          : BookingStatus.pending.wireValue,
       'paid': false,
       'createdAt': FieldValue.serverTimestamp(),
       'emailNotificationSent': true,

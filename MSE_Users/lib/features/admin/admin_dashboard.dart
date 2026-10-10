@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config/firestore_config.dart';
+import '../../core/config/razorpay_config.dart';
 import '../../core/models/models.dart';
 import '../booking/booking_service.dart';
 
@@ -129,6 +130,9 @@ class AdminDashboardPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 20),
                       ],
+
+                      // Razorpay Dynamic Gateway Config Card
+                      _buildRazorpayConfigCard(context),
 
                       const Text(
                         'Executive Summary',
@@ -392,6 +396,191 @@ class AdminDashboardPage extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRazorpayConfigCard(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirestoreConfig.db
+          .collection('system_config')
+          .doc('razorpay')
+          .snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data() ?? {};
+        final keyId = (data['keyId'] ?? RazorpayConfig.keyId) as String;
+        final merchantName =
+            (data['merchantName'] ?? RazorpayConfig.merchantName) as String;
+        final isLive = keyId.startsWith('rzp_live_');
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.payment, color: Color(0xFF0F2C59), size: 22),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Razorpay Payment Gateway Config',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B)),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isLive ? Colors.green.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: isLive ? Colors.green.shade200 : Colors.orange.shade200),
+                    ),
+                    child: Text(
+                      isLive ? 'LIVE MODE' : 'TEST MODE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isLive ? Colors.green.shade800 : Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Merchant Name: $merchantName',
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Key ID: ${keyId.length > 14 ? "${keyId.substring(0, 12)}..." : keyId}',
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F2C59),
+                      side: const BorderSide(color: Color(0xFF0F2C59)),
+                    ),
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Update Keys'),
+                    onPressed: () =>
+                        _showRazorpayConfigModal(context, keyId, merchantName),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRazorpayConfigModal(
+      BuildContext context, String currentKey, String currentMerchant) {
+    final keyCtrl = TextEditingController(text: currentKey);
+    final merchantCtrl = TextEditingController(text: currentMerchant);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Update Razorpay Keys & Config',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: keyCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Razorpay Key ID (rzp_test_... or rzp_live_...)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: merchantCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Merchant Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F2C59),
+                ),
+                onPressed: () async {
+                  final key = keyCtrl.text.trim();
+                  final merchant = merchantCtrl.text.trim();
+
+                  if (key.isEmpty) return;
+
+                  await RazorpayConfig.updateConfig(
+                    keyId: key,
+                    merchantName: merchant.isNotEmpty ? merchant : 'M&S Electricals',
+                    themeColorHex: '#0F2C59',
+                  );
+
+                  if (context.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Razorpay configuration updated dynamically!'),
+                        backgroundColor: Color(0xFF0F2C59),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Save Configuration'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

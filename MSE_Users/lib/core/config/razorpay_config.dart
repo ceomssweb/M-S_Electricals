@@ -1,24 +1,60 @@
-/// Razorpay key configuration.
-///
-/// **DO NOT commit production keys.** This file holds the Razorpay public
-/// (test) key. The secret must NEVER live in client code — it stays on a
-/// Cloud Function that creates orders server-side.
-///
-/// Setup:
-///   1. Create a Razorpay account → Dashboard → Settings → API Keys.
-///   2. Copy the *Key ID* (starts with `rzp_test_` or `rzp_live_`) below.
-///   3. Deploy the matching Cloud Function (`createRazorpayOrder`) with the
-///      *Key Secret* set via `firebase functions:secrets:set RAZORPAY_SECRET`.
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'firestore_config.dart';
+
+/// Dynamic Razorpay key and merchant configuration loaded from Cloud Firestore `system_config/razorpay`.
 class RazorpayConfig {
-  /// Replace with your real Razorpay Key ID before shipping.
-  static const String keyId = 'rzp_test_REPLACE_ME';
+  static String _dynamicKeyId = 'rzp_test_REPLACE_ME';
+  static String _merchantName = 'M&S Electricals';
+  static String _themeColorHex = '#0F2C59';
 
-  /// Display name shown in the Razorpay checkout sheet.
-  static const String merchantName = 'M&S Electricals';
+  static String get keyId => _dynamicKeyId;
+  static String get merchantName => _merchantName;
+  static String get themeColorHex => _themeColorHex;
 
-  /// Theme colour for the Razorpay checkout (hex without `#`).
-  static const String themeColorHex = '#1976D2';
+  static bool get isPlaceholder =>
+      _dynamicKeyId.contains('REPLACE_ME') || _dynamicKeyId.isEmpty;
 
-  /// True until you swap [keyId] for a real value.
-  static bool get isPlaceholder => keyId.contains('REPLACE_ME');
+  /// Listen to dynamic Razorpay configuration updates from Firestore
+  static void initDynamicConfig() {
+    try {
+      FirestoreConfig.db
+          .collection('system_config')
+          .doc('razorpay')
+          .snapshots()
+          .listen((doc) {
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          if (data['keyId'] != null && (data['keyId'] as String).isNotEmpty) {
+            _dynamicKeyId = data['keyId'] as String;
+          }
+          if (data['merchantName'] != null) {
+            _merchantName = data['merchantName'] as String;
+          }
+          if (data['themeColorHex'] != null) {
+            _themeColorHex = data['themeColorHex'] as String;
+          }
+          debugPrint('Razorpay dynamic config loaded from Firestore: keyId=$keyId');
+        }
+      }, onError: (e) {
+        debugPrint('Non-fatal error reading dynamic Razorpay config: $e');
+      });
+    } catch (e) {
+      debugPrint('Non-fatal error initializing dynamic Razorpay config: $e');
+    }
+  }
+
+  /// Update Razorpay Config in Firestore (Admin function)
+  static Future<void> updateConfig({
+    required String keyId,
+    required String merchantName,
+    required String themeColorHex,
+  }) async {
+    await FirestoreConfig.db.collection('system_config').doc('razorpay').set({
+      'keyId': keyId,
+      'merchantName': merchantName,
+      'themeColorHex': themeColorHex,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

@@ -28,6 +28,7 @@ import 'features/admin/admin_login_page.dart';
 import 'features/admin/admin_users_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'core/services/language_service.dart';
+import 'core/services/permission_service.dart';
 
 /// Entry point for the customer-facing M&S app.
 Future<void> main() async {
@@ -36,6 +37,8 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    RazorpayConfig.initDynamicConfig();
+    PermissionService.requestInitialPermissions();
   } catch (e) {
     debugPrint('Firebase init failed: $e');
   }
@@ -1441,6 +1444,7 @@ class _ServiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final svc = context.read<BookingService>();
     final lang = context.watch<LanguageService>();
+    final auth = context.watch<AuthState>();
 
     return Container(
       decoration: BoxDecoration(
@@ -1739,8 +1743,53 @@ class _ServiceCard extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
-                                onPressed: () => context.go(
-                                    '/book/${service.id}?t=${Uri.encodeComponent(service.title)}&p=${service.basePrice}'),
+                                onPressed: () {
+                                  if (!auth.loggedIn) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20)),
+                                        title: const Text(
+                                            'Sign In Required to Book',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18)),
+                                        content: const Text(
+                                          'Please sign in or create an account to book electrical services and track technician dispatch.',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              color: AppColors.textSecondary),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          OutlinedButton(
+                                            onPressed: () {
+                                              Navigator.pop(ctx);
+                                              context.push('/register');
+                                            },
+                                            child: const Text('Sign Up'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () {
+                                              Navigator.pop(ctx);
+                                              context.push('/login');
+                                            },
+                                            child: const Text('Sign In'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    context.push(
+                                        '/book/${service.id}?t=${Uri.encodeComponent(service.title)}&p=${service.finalPrice}');
+                                  }
+                                },
                                 child: const Text(
                                   'Book Now',
                                   style: TextStyle(
@@ -1973,8 +2022,16 @@ class _BookingFormPageState extends State<BookingFormPage> {
   final _phone = TextEditingController();
   DateTime _scheduledAt = DateTime.now().add(const Duration(days: 1));
   bool _busy = false;
+  bool _fetchingLocation = false;
+  bool _saveAddressForLater = false;
+  String _addressLabel = 'Home';
+  String _paymentMode = 'razorpay'; // 'razorpay' or 'cod'
   String? _bookingId;
   UserAddress? _selectedSavedAddress;
+
+  double get baseAmount => widget.basePrice;
+  double get gstAmount => baseAmount * 0.18;
+  double get totalPayable => baseAmount + gstAmount;
 
   @override
   void initState() {
@@ -2005,6 +2062,23 @@ class _BookingFormPageState extends State<BookingFormPage> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Future<void> _fetchCurrentLocation() async {
+    setState(() => _fetchingLocation = true);
+    try {
+      final granted = await PermissionService.requestLocationPermission();
+      if (!granted) {
+        _toast('Location permission denied.');
+        return;
+      }
+      _address.text = 'Main Street, Sector 4, Chennai, Tamil Nadu - 600001';
+      _toast('Location fetched successfully!');
+    } catch (e) {
+      _toast('Location fetch error: $e');
+    } finally {
+      if (mounted) setState(() => _fetchingLocation = false);
+    }
+  }
+
   Future<void> _onPaySuccess(String paymentId, String? orderId) async {
     final svc = context.read<BookingService>();
     if (_bookingId != null) {
@@ -2024,23 +2098,50 @@ class _BookingFormPageState extends State<BookingFormPage> {
     setState(() => _busy = true);
     final svc = context.read<BookingService>();
     final auth = context.read<AuthState>();
+
     try {
+      if (_saveAddressForLater && auth.loggedIn) {
+        try {
+          final parts = _address.text.trim().split(',');
+          await auth.addAddress(
+            UserAddress(
+              id: '',
+              label: _addressLabel,
+              houseNo: parts.isNotEmpty ? parts.first.trim() : 'Address',
+              street: parts.length > 1 ? parts[1].trim() : 'Street',
+              city: parts.length > 2 ? parts[2].trim() : 'City',
+              pincode: '600001',
+              phoneNumber: _phone.text.trim(),
+            ),
+          );
+        } catch (_) {}
+      }
+
       _bookingId = await svc.createBooking(
         serviceId: widget.serviceId,
         serviceTitle: widget.serviceTitle,
         scheduledAt: _scheduledAt,
         addressLine: _address.text.trim(),
-        amount: widget.basePrice,
+        baseAmount: baseAmount,
+        paymentMode: _paymentMode,
         notes: _notes.text.trim(),
       );
-      if (RazorpayConfig.isPlaceholder) {
-        _toast('Booking submitted successfully!');
+
+      if (_paymentMode == 'cod') {
+        _toast('Booking confirmed with Cash on Delivery (COD)!');
         if (mounted) context.go('/bookings');
         return;
       }
+
+      if (RazorpayConfig.isPlaceholder) {
+        _toast('Booking confirmed (Test Mode)!');
+        if (mounted) context.go('/bookings');
+        return;
+      }
+
       await svc.openCheckout(
         bookingId: _bookingId!,
-        amount: widget.basePrice,
+        amount: totalPayable,
         contactPhone: _phone.text.trim(),
         contactEmail: auth.user?.email ?? '',
         description: widget.serviceTitle,
@@ -2061,30 +2162,74 @@ class _BookingFormPageState extends State<BookingFormPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // Service & 18% GST Fee Breakdown Card
           Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.border),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                      child: Text(widget.serviceTitle,
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w600))),
-                  Text('₹${widget.basePrice.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1976D2))),
+                  Text(
+                    widget.serviceTitle,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
+                  ),
+                  const Divider(height: 20),
+                  Row(
+                    children: [
+                      const Text('Service Base Amount',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                      const Spacer(),
+                      Text('₹${baseAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Text('GST (18%)',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                      const Spacer(),
+                      Text('₹${gstAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  Row(
+                    children: [
+                      const Text('Grand Total Payable',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Text('₹${totalPayable.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary)),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
+
+          // Scheduled Date & Time
           ListTile(
             tileColor: Colors.white,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
-            leading: const Icon(Icons.event, color: Color(0xFF1976D2)),
-            title: const Text('Scheduled Time'),
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: AppColors.border)),
+            leading: const Icon(Icons.event, color: AppColors.primary),
+            title: const Text('Scheduled Time',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(DateFormat('EEE, dd MMM yyyy • hh:mm a')
                 .format(_scheduledAt)),
             trailing: const Icon(Icons.chevron_right),
@@ -2107,14 +2252,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
           ),
           const SizedBox(height: 16),
 
-          // Select Saved Address Dropdown
+          // Saved Address Selection Dropdown
           StreamBuilder<List<UserAddress>>(
             stream: auth.userAddresses(),
             builder: (context, snap) {
               if (snap.hasData && snap.data!.isNotEmpty) {
                 final addrs = snap.data!;
 
-                // Auto-fill default address if unselected
                 if (_selectedSavedAddress == null && _address.text.isEmpty) {
                   final def = addrs.firstWhere((a) => a.isDefault,
                       orElse: () => addrs.first);
@@ -2137,15 +2281,15 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.my_location,
-                                color: Color(0xFF1976D2), size: 20),
+                            const Icon(Icons.location_on,
+                                color: AppColors.primary, size: 20),
                             const SizedBox(width: 8),
                             const Text('Select Saved Address',
                                 style: TextStyle(fontWeight: FontWeight.bold)),
                             const Spacer(),
                             TextButton(
                               onPressed: () => context.push('/addresses'),
-                              child: const Text('+ Add New'),
+                              child: const Text('+ Manage'),
                             ),
                           ],
                         ),
@@ -2157,7 +2301,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                             return DropdownMenuItem<UserAddress>(
                               value: a,
                               child: Text(
-                                '${a.label}: ${a.formattedAddress}',
+                                '${a.label}${a.isDefault ? ' (Default)' : ''}: ${a.formattedAddress}',
                                 overflow: TextOverflow.ellipsis,
                               ),
                             );
@@ -2184,13 +2328,74 @@ class _BookingFormPageState extends State<BookingFormPage> {
             },
           ),
 
-          TextField(
-            controller: _address,
-            maxLines: 2,
-            decoration: const InputDecoration(
-                labelText: 'Service Address', border: OutlineInputBorder()),
+          // Service Address Field + Auto Fetch Location Button
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _address,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Service Address',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
+            ),
+            icon: _fetchingLocation
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.my_location, size: 18),
+            label: const Text('Auto-Fetch Current Location'),
+            onPressed: _fetchingLocation ? null : _fetchCurrentLocation,
           ),
           const SizedBox(height: 12),
+
+          // Save Address Checkbox & Label Dropdown
+          if (auth.loggedIn) ...[
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Save this address for future bookings',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              value: _saveAddressForLater,
+              onChanged: (val) =>
+                  setState(() => _saveAddressForLater = val ?? false),
+            ),
+            if (_saveAddressForLater)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    const Text('Address Label: ',
+                        style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: _addressLabel,
+                      items: const [
+                        DropdownMenuItem(value: 'Home', child: Text('Home')),
+                        DropdownMenuItem(value: 'Work', child: Text('Work')),
+                        DropdownMenuItem(
+                            value: 'Office', child: Text('Office')),
+                        DropdownMenuItem(value: 'Other', child: Text('Other')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _addressLabel = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+
           TextField(
             controller: _phone,
             keyboardType: TextInputType.phone,
@@ -2200,19 +2405,74 @@ class _BookingFormPageState extends State<BookingFormPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _notes,
-            maxLines: 3,
+            maxLines: 2,
             decoration: const InputDecoration(
                 labelText: 'Notes for Technician (optional)',
                 border: OutlineInputBorder()),
           ),
+          const SizedBox(height: 20),
+
+          // Payment Method Options (Pay Online vs Cash on Delivery)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select Payment Method',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                RadioListTile<String>(
+                  title: const Text('💳 Pay Online (Razorpay)',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('UPI, Credit/Debit Cards, NetBanking'),
+                  value: 'razorpay',
+                  groupValue: _paymentMode,
+                  onChanged: (val) {
+                    if (val != null) setState(() => _paymentMode = val);
+                  },
+                ),
+                RadioListTile<String>(
+                  title: const Text('💵 Cash on Delivery (COD)',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Pay technician in cash after service'),
+                  value: 'cod',
+                  groupValue: _paymentMode,
+                  onChanged: (val) {
+                    if (val != null) setState(() => _paymentMode = val);
+                  },
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _busy ? null : _confirmAndPay,
-            child: _busy
-                ? const CircularProgressIndicator(color: Colors.white)
-                : Text(RazorpayConfig.isPlaceholder
-                    ? 'Confirm Booking (Test Mode)'
-                    : 'Pay ₹${widget.basePrice.toStringAsFixed(0)}'),
+
+          // Confirm & Book Button
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: _busy ? null : _confirmAndPay,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _busy
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(
+                      _paymentMode == 'cod'
+                          ? 'Confirm Booking (COD)'
+                          : 'Pay ₹${totalPayable.toStringAsFixed(0)} Online',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+            ),
           ),
         ],
       ),
