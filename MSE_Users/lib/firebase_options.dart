@@ -56,6 +56,17 @@ class DefaultFirebaseOptions {
     measurementId: 'G-WG37ZLXPGZ',
   );
 
+  static const FirebaseOptions adminWeb = FirebaseOptions(
+    apiKey: 'AIzaSyDmcOM8CKqcpvAJnCLGZk90wSiVRqkPki0',
+    appId: '1:337897639107:web:cf75803383bc014d8c2676',
+    messagingSenderId: '337897639107',
+    projectId: 'mselectricals-4cc75',
+    authDomain: 'mselectricals-4cc75.firebaseapp.com',
+    databaseURL: 'https://mselectricals-4cc75-default-rtdb.firebaseio.com',
+    storageBucket: 'mselectricals-4cc75.firebasestorage.app',
+    measurementId: 'G-DGR8HBYDSE',
+  );
+
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDl_VA_spck5PJy7yChcNrg8vGjGRz_kxk',
     appId: '1:114554009961:android:3cc7daffd92e35c1c0a5f8',

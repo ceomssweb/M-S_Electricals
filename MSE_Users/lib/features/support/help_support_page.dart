@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/firestore_config.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -62,7 +63,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     setState(() => _busy = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance.collection('support_tickets').add({
+      await FirestoreConfig.db.collection('support_tickets').add({
         'customerUid': user?.uid,
         'email': user?.email ?? '',
         'subject': _subjectCtrl.text.trim(),

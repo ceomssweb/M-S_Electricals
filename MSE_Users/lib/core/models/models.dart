@@ -68,6 +68,7 @@ class UserProfile {
   final bool emailNotifyEnabled;
   final String? fcmToken;
   final DateTime? createdAt;
+  final bool isAdmin;
 
   const UserProfile({
     required this.uid,
@@ -79,10 +80,15 @@ class UserProfile {
     this.emailNotifyEnabled = true,
     this.fcmToken,
     this.createdAt,
+    this.isAdmin = false,
   });
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
+    final role = (d['role'] ?? '') as String;
+    final boolIsAdmin = (d['isAdmin'] ?? false) as bool;
+    final isAdminUser = boolIsAdmin || role.toLowerCase() == 'admin';
+
     return UserProfile(
       uid: doc.id,
       email: (d['email'] ?? '') as String,
@@ -93,6 +99,7 @@ class UserProfile {
       emailNotifyEnabled: (d['emailNotifyEnabled'] ?? true) as bool,
       fcmToken: d['fcmToken'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+      isAdmin: isAdminUser,
     );
   }
 
@@ -104,6 +111,7 @@ class UserProfile {
         'pushEnabled': pushEnabled,
         'emailNotifyEnabled': emailNotifyEnabled,
         if (fcmToken != null) 'fcmToken': fcmToken,
+        'isAdmin': isAdmin,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 }
@@ -162,6 +170,7 @@ class RasiService {
   final String description;
   final String category;
   final double basePrice;
+  final double discountPercent;
   final int durationMinutes;
   final String iconEmoji;
   final String? imageUrl;
@@ -176,6 +185,7 @@ class RasiService {
     required this.description,
     required this.category,
     required this.basePrice,
+    this.discountPercent = 0.0,
     required this.durationMinutes,
     required this.iconEmoji,
     this.imageUrl,
@@ -184,6 +194,10 @@ class RasiService {
     this.active = true,
     this.isFavorite = false,
   });
+
+  double get finalPrice => discountPercent > 0
+      ? basePrice * (1 - (discountPercent / 100))
+      : basePrice;
 
   factory RasiService.fromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc, {
@@ -194,31 +208,58 @@ class RasiService {
       id: doc.id,
       title: (d['title'] ?? '') as String,
       description: (d['description'] ?? '') as String,
-      category: (d['category'] ?? 'general') as String,
+      category: (d['category'] ?? 'Wiring') as String,
       basePrice: ((d['basePrice'] ?? 0) as num).toDouble(),
+      discountPercent: ((d['discountPercent'] ?? 0) as num).toDouble(),
       durationMinutes: ((d['durationMinutes'] ?? 60) as num).toInt(),
       iconEmoji: (d['iconEmoji'] ?? '⚡') as String,
       imageUrl: d['imageUrl'] as String?,
-      rating: ((d['rating'] ?? 0) as num).toDouble(),
-      ratingCount: ((d['ratingCount'] ?? 0) as num).toInt(),
+      rating: ((d['rating'] ?? 4.8) as num).toDouble(),
+      ratingCount: ((d['ratingCount'] ?? 15) as num).toInt(),
       active: (d['active'] ?? true) as bool,
       isFavorite: isFavorite,
     );
   }
 
-  RasiService copyWith({bool? isFavorite}) {
+  Map<String, dynamic> toMap() => {
+        'title': title,
+        'description': description,
+        'category': category,
+        'basePrice': basePrice,
+        'discountPercent': discountPercent,
+        'durationMinutes': durationMinutes,
+        'iconEmoji': iconEmoji,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        'rating': rating,
+        'ratingCount': ratingCount,
+        'active': active,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  RasiService copyWith({
+    String? title,
+    String? description,
+    String? category,
+    double? basePrice,
+    double? discountPercent,
+    int? durationMinutes,
+    String? iconEmoji,
+    bool? active,
+    bool? isFavorite,
+  }) {
     return RasiService(
       id: id,
-      title: title,
-      description: description,
-      category: category,
-      basePrice: basePrice,
-      durationMinutes: durationMinutes,
-      iconEmoji: iconEmoji,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      basePrice: basePrice ?? this.basePrice,
+      discountPercent: discountPercent ?? this.discountPercent,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      iconEmoji: iconEmoji ?? this.iconEmoji,
       imageUrl: imageUrl,
       rating: rating,
       ratingCount: ratingCount,
-      active: active,
+      active: active ?? this.active,
       isFavorite: isFavorite ?? this.isFavorite,
     );
   }

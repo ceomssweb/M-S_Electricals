@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
+import 'core/config/firestore_config.dart';
 import 'core/config/razorpay_config.dart';
 import 'core/models/models.dart';
 import 'features/auth/auth_state.dart';
@@ -18,6 +20,14 @@ import 'features/profile/addresses_page.dart';
 import 'features/profile/edit_profile_page.dart';
 import 'features/booking/booking_detail_page.dart';
 import 'features/support/help_support_page.dart';
+import 'features/admin/admin_analytics_page.dart';
+import 'features/admin/admin_bookings_page.dart';
+import 'features/admin/admin_dashboard.dart';
+import 'features/admin/admin_feedback_page.dart';
+import 'features/admin/admin_login_page.dart';
+import 'features/admin/admin_users_page.dart';
+import 'features/notifications/notifications_page.dart';
+import 'core/services/language_service.dart';
 
 /// Entry point for the customer-facing M&S app.
 Future<void> main() async {
@@ -42,6 +52,7 @@ class RasiCustomerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthState()),
         ChangeNotifierProvider(create: (_) => BookingService()),
         ChangeNotifierProvider(create: (_) => NotificationService()),
+        ChangeNotifierProvider(create: (_) => LanguageService()..init()),
       ],
       child: Consumer<AuthState>(
         builder: (context, auth, _) {
@@ -126,6 +137,16 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
         final isAuthRoute = loc == '/login' || loc == '/register';
         if (loc == '/splash') return null;
         if (loggedIn && isAuthRoute) return '/home';
+
+        if (loc.startsWith('/bookings') && !loggedIn) {
+          return '/login';
+        }
+
+        if (loc.startsWith('/admin') && loc != '/admin/login') {
+          if (!auth.isAdmin) {
+            return '/admin/login';
+          }
+        }
         return null;
       },
       routes: [
@@ -133,6 +154,9 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
             path: '/splash', builder: (_, __) => const _SplashRedirector()),
         GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
         GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+        GoRoute(
+            path: '/admin/login',
+            builder: (_, __) => const AdminLoginPage()),
         ShellRoute(
           builder: (_, __, child) => HomeShell(child: child),
           routes: [
@@ -174,6 +198,30 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
         GoRoute(
           path: '/support',
           builder: (_, __) => const HelpSupportPage(),
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (_, __) => const NotificationsPage(),
+        ),
+        GoRoute(
+          path: '/admin',
+          builder: (_, __) => const AdminDashboardPage(),
+        ),
+        GoRoute(
+          path: '/admin/users',
+          builder: (_, __) => const AdminUsersPage(),
+        ),
+        GoRoute(
+          path: '/admin/bookings',
+          builder: (_, __) => const AdminBookingsPage(),
+        ),
+        GoRoute(
+          path: '/admin/analytics',
+          builder: (_, __) => const AdminAnalyticsPage(),
+        ),
+        GoRoute(
+          path: '/admin/feedback',
+          builder: (_, __) => const AdminFeedbackPage(),
         ),
       ],
     );
@@ -755,13 +803,6 @@ class _HomeShellState extends State<HomeShell> {
   Timer? _guestPromptTimer;
   bool _dialogShowing = false;
 
-  static const _tabs = [
-    ('/home', Icons.home_outlined, Icons.home, 'Home'),
-    ('/bookings', Icons.receipt_long_outlined, Icons.receipt_long, 'Bookings'),
-    ('/profile', Icons.person_outline, Icons.person, 'Profile'),
-    ('/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -795,12 +836,12 @@ class _HomeShellState extends State<HomeShell> {
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        contentPadding: const EdgeInsets.all(24),
         title: Row(
           children: [
             Image.asset(
               'lib/assets/logo/M&S.PNG',
-              height: 32,
+              height: 36,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => const Icon(
                 Icons.electrical_services,
@@ -819,49 +860,66 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ],
         ),
-        content: const Text(
-          'Sign in or create an account to easily book electrical services, manage addresses, and track technician dispatches.',
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Sign in or create an account to easily book electrical services, manage addresses, and track technician dispatches.',
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.push('/register');
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.accent,
+                      side: const BorderSide(color: AppColors.accent, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Sign Up',
+                        style: TextStyle(
+                            color: AppColors.accent, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.push('/login');
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Sign In',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Continue as Guest',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Later',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          OutlinedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push('/register');
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.accent,
-              side: const BorderSide(color: AppColors.accent, width: 1.5),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Sign Up',
-                style: TextStyle(
-                    color: AppColors.accent, fontWeight: FontWeight.bold)),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push('/login');
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Sign In',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     ).then((_) {
       if (mounted) {
@@ -870,23 +928,50 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  int _indexFor(String location) {
-    for (var i = 0; i < _tabs.length; i++) {
-      if (location.startsWith(_tabs[i].$1)) return i;
+  List<(String, IconData, IconData, String)> _activeTabs(
+      bool loggedIn, LanguageService lang) {
+    if (loggedIn) {
+      return [
+        ('/home', Icons.home_outlined, Icons.home, lang.t('nav_home')),
+        (
+          '/bookings',
+          Icons.receipt_long_outlined,
+          Icons.receipt_long,
+          lang.t('nav_bookings')
+        ),
+        ('/profile', Icons.person_outline, Icons.person, lang.t('nav_profile')),
+        ('/settings', Icons.settings_outlined, Icons.settings, lang.t('nav_settings')),
+      ];
+    } else {
+      return [
+        ('/home', Icons.home_outlined, Icons.home, lang.t('nav_home')),
+        ('/profile', Icons.person_outline, Icons.person, lang.t('nav_profile')),
+        ('/settings', Icons.settings_outlined, Icons.settings, lang.t('nav_settings')),
+      ];
+    }
+  }
+
+  int _indexFor(
+      String location, List<(String, IconData, IconData, String)> activeTabs) {
+    for (var i = 0; i < activeTabs.length; i++) {
+      if (location.startsWith(activeTabs[i].$1)) return i;
     }
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    final lang = context.watch<LanguageService>();
     final loc = GoRouterState.of(context).matchedLocation;
-    final idx = _indexFor(loc);
+    final activeTabs = _activeTabs(auth.loggedIn, lang);
+    final idx = _indexFor(loc, activeTabs);
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: _CustomTopBorderNavBar(
         selectedIndex: idx,
-        onDestinationSelected: (i) => context.go(_tabs[i].$1),
-        tabs: _tabs,
+        onDestinationSelected: (i) => context.go(activeTabs[i].$1),
+        tabs: activeTabs,
       ),
     );
   }
@@ -1017,6 +1102,7 @@ class _ServicesPageState extends State<ServicesPage> {
   Widget build(BuildContext context) {
     final svc = context.watch<BookingService>();
     final auth = context.watch<AuthState>();
+    final lang = context.watch<LanguageService>();
 
     return Scaffold(
       appBar: AppBar(
@@ -1031,9 +1117,27 @@ class _ServicesPageState extends State<ServicesPage> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.go('/settings'),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Notifications',
+                onPressed: () => context.push('/notifications'),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1041,12 +1145,12 @@ class _ServicesPageState extends State<ServicesPage> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Hi, ${auth.user?.displayName ?? 'Customer'} 👋',
+            'Hi, ${auth.user?.displayName ?? (auth.loggedIn ? 'Customer' : lang.t('welcome_guest'))} 👋',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          const Text(
-            'What electrical service do you need today?',
-            style: TextStyle(color: AppColors.textSecondary),
+          Text(
+            lang.t('home_greeting'),
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
 
@@ -1075,10 +1179,10 @@ class _ServicesPageState extends State<ServicesPage> {
                     onChanged: (val) {
                       setState(() {});
                     },
-                    decoration: const InputDecoration(
-                      hintText: 'Search wiring, AC repair, lighting...',
+                    decoration: InputDecoration(
+                      hintText: lang.t('home_search_hint'),
                       border: InputBorder.none,
-                      hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                      hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                     ),
                   ),
                 ),
@@ -1096,9 +1200,9 @@ class _ServicesPageState extends State<ServicesPage> {
           const SizedBox(height: 20),
 
           // Category Shortcut Icons
-          const Text(
-            'Categories & Shortcuts',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          Text(
+            lang.t('home_categories_title'),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -1110,6 +1214,7 @@ class _ServicesPageState extends State<ServicesPage> {
               itemBuilder: (_, i) {
                 final c = _categories[i];
                 final isSelected = _selectedCategory == c.$1;
+                final localizedCategory = lang.category(c.$1);
                 return InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: () {
@@ -1148,7 +1253,7 @@ class _ServicesPageState extends State<ServicesPage> {
                         Text(c.$2, style: const TextStyle(fontSize: 26)),
                         const SizedBox(height: 4),
                         Text(
-                          c.$1,
+                          localizedCategory,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1173,8 +1278,8 @@ class _ServicesPageState extends State<ServicesPage> {
             children: [
               Text(
                 _selectedCategory == 'All'
-                    ? 'Popular Services'
-                    : 'Category: $_selectedCategory',
+                    ? lang.t('home_popular_services')
+                    : '${lang.t('home_category_prefix')}${lang.category(_selectedCategory)}',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -1189,7 +1294,7 @@ class _ServicesPageState extends State<ServicesPage> {
                       _searchCtrl.clear();
                     });
                   },
-                  child: const Text('Reset filters'),
+                  child: Text(lang.t('home_reset_filters')),
                 ),
             ],
           ),
@@ -1203,48 +1308,123 @@ class _ServicesPageState extends State<ServicesPage> {
             ),
             builder: (context, snap) {
               if (snap.hasError) {
-                return const _ErrorCard('Could not load services.');
+                return _ErrorCard('Could not load services.', onRetry: () {
+                  setState(() {});
+                });
               }
-              if (!snap.hasData) {
+              if (snap.connectionState == ConnectionState.waiting) {
                 return const Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: EdgeInsets.all(40),
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              final list = snap.data!;
+              final list = snap.data ?? [];
               if (list.isEmpty) {
-                return Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.search_off, size: 48, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No services found matching "${_searchCtrl.text}"',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedCategory = 'All';
-                            _searchCtrl.clear();
-                          });
-                        },
-                        child: const Text('View All Services'),
-                      ),
-                    ],
-                  ),
-                );
+                return _buildEmptyState(context, lang);
               }
-              return Column(
-                children: [for (final s in list) _ServiceCard(service: s)],
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final crossAxisCount = constraints.maxWidth > 920
+                      ? 3
+                      : (constraints.maxWidth > 620 ? 2 : 1);
+
+                  if (crossAxisCount == 1) {
+                    return Column(
+                      children: [
+                        for (final s in list)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _ServiceCard(service: s),
+                          ),
+                      ],
+                    );
+                  }
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      mainAxisExtent: 220,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: list.length,
+                    itemBuilder: (ctx, i) => _ServiceCard(service: list[i]),
+                  );
+                },
               );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, LanguageService lang) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Text('⚡', style: TextStyle(fontSize: 38)),
+              SizedBox(width: 10),
+              Text('🔌', style: TextStyle(fontSize: 38)),
+              SizedBox(width: 10),
+              Text('🛠️', style: TextStyle(fontSize: 38)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchCtrl.text.isNotEmpty
+                ? 'No services found matching "${_searchCtrl.text}"'
+                : 'No services available in this category',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Try resetting your category filters or searching for another term.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary, width: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.refresh, size: 18),
+            label: Text(lang.t('home_reset_filters')),
+            onPressed: () {
+              setState(() {
+                _selectedCategory = 'All';
+                _searchCtrl.clear();
+              });
             },
           ),
         ],
@@ -1260,77 +1440,324 @@ class _ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final svc = context.read<BookingService>();
+    final lang = context.watch<LanguageService>();
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.go('/service/${service.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3F2FD),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(service.iconEmoji,
-                    style: const TextStyle(fontSize: 28)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(service.title,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(service.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Colors.black54, fontSize: 13)),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      const Icon(Icons.star, size: 14, color: Colors.amber),
-                      const SizedBox(width: 2),
-                      Text(service.rating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12)),
-                      const SizedBox(width: 8),
-                      Text('• ${service.durationMinutes} min',
-                          style: const TextStyle(fontSize: 12)),
-                    ]),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      service.isFavorite
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: service.isFavorite ? Colors.red : Colors.grey,
-                      size: 20,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x0C0F2C59),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push('/service/${service.id}'),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 40% Visual Frame Left
+                Expanded(
+                  flex: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.08),
+                          AppColors.primary.withValues(alpha: 0.02),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        bottomLeft: Radius.circular(20),
+                      ),
                     ),
-                    onPressed: () {
-                      svc.toggleFavorite(service.id, service.isFavorite);
-                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top Badges
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star,
+                                      size: 13, color: AppColors.accent),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    service.rating.toStringAsFixed(1),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (service.discountPercent > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${service.discountPercent.toStringAsFixed(0)}% OFF',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        // Center Emoji / Image Thumbnail
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Container(
+                              width: 62,
+                              height: 68,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: service.imageUrl != null &&
+                                      service.imageUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(34),
+                                      child: CachedNetworkImage(
+                                        imageUrl: service.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        width: 62,
+                                        height: 68,
+                                        errorWidget: (_, __, ___) => Text(
+                                          service.iconEmoji,
+                                          style: const TextStyle(fontSize: 32),
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      service.iconEmoji,
+                                      style: const TextStyle(fontSize: 32),
+                                    ),
+                            ),
+                          ),
+                        ),
+
+                        // Bottom Duration Pill
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.schedule,
+                                    size: 12, color: AppColors.textSecondary),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${service.durationMinutes} min',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Text('₹${service.basePrice.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1976D2))),
-                ],
-              ),
-            ],
+                ),
+
+                // 60% Content Column Right
+                Expanded(
+                  flex: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Category & Favorite Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                lang.category(service.category),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: Icon(
+                                service.isFavorite
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: service.isFavorite
+                                    ? Colors.red
+                                    : Colors.grey,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                svc.toggleFavorite(
+                                    service.id, service.isFavorite);
+                              },
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        // Title
+                        Text(
+                          service.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        // Description Preview
+                        Text(
+                          service.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.3,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // Price & Book CTA Row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '₹${service.finalPrice.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                if (service.discountPercent > 0)
+                                  Text(
+                                    '₹${service.basePrice.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const Spacer(),
+                            SizedBox(
+                              height: 36,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                onPressed: () => context.go(
+                                    '/book/${service.id}?t=${Uri.encodeComponent(service.title)}&p=${service.basePrice}'),
+                                child: const Text(
+                                  'Book Now',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1340,19 +1767,72 @@ class _ServiceCard extends StatelessWidget {
 
 class _ErrorCard extends StatelessWidget {
   final String msg;
-  const _ErrorCard(this.msg);
+  final VoidCallback? onRetry;
+
+  const _ErrorCard(this.msg, {this.onRetry});
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            const Icon(Icons.info_outline, color: Colors.orange),
-            const SizedBox(width: 12),
-            Expanded(child: Text(msg)),
-          ],
-        ),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Text('⚡', style: TextStyle(fontSize: 32)),
+              SizedBox(width: 8),
+              Text('🔧', style: TextStyle(fontSize: 32)),
+              SizedBox(width: 8),
+              Text('💡', style: TextStyle(fontSize: 32)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'M&S Electrical Services',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            msg,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 40,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Refresh Services',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              onPressed: onRetry ?? () {},
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1369,7 +1849,7 @@ class ServiceDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Service Details')),
       body: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        future: FirebaseFirestore.instance
+        future: FirestoreConfig.db
             .collection('services')
             .doc(serviceId)
             .get(),
@@ -1778,9 +2258,10 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
   @override
   Widget build(BuildContext context) {
     final svc = context.watch<BookingService>();
+    final lang = context.watch<LanguageService>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Bookings')),
+      appBar: AppBar(title: Text(lang.t('bookings_title'))),
       body: Column(
         children: [
           // Filter tabs
@@ -1790,14 +2271,14 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('All'),
+                  label: Text(lang.t('cat_All')),
                   selected: _selectedStatus == null,
                   onSelected: (_) => setState(() => _selectedStatus = null),
                 ),
                 const SizedBox(width: 8),
                 for (final st in BookingStatus.values) ...[
                   FilterChip(
-                    label: Text(st.label),
+                    label: Text(lang.t('status_${st.label}')),
                     selected: _selectedStatus == st,
                     onSelected: (_) => setState(() => _selectedStatus = st),
                   ),
@@ -1814,7 +2295,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
               controller: _searchCtrl,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Search bookings by service name...',
+                hintText: lang.t('bookings_search_hint'),
                 prefixIcon: const Icon(Icons.search, size: 20),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(
@@ -1846,8 +2327,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                         const Icon(Icons.receipt_long,
                             size: 64, color: Colors.grey),
                         const SizedBox(height: 12),
-                        const Text('No matching bookings found.',
-                            style: TextStyle(color: Colors.black54)),
+                        Text(lang.t('bookings_empty'),
+                            style: const TextStyle(color: Colors.black54)),
                       ],
                     ),
                   );
@@ -1889,7 +2370,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                                           .withValues(alpha: .15),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(b.status.label,
+                                    child: Text(
+                                        lang.t('status_${b.status.label}'),
                                         style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
@@ -1937,11 +2419,104 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
     final svc = context.watch<BookingService>();
+    final lang = context.watch<LanguageService>();
     final u = auth.user;
+
+    if (!auth.loggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: Text(lang.t('profile_title'))),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'lib/assets/logo/M&S.PNG',
+                    height: 56,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.account_circle_outlined,
+                      size: 64,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    lang.t('profile_sign_in_title'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    lang.t('profile_sign_in_desc'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => context.push('/register'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            side: const BorderSide(color: AppColors.accent, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(lang.t('sign_up'),
+                              style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => context.push('/login'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(lang.t('sign_in'),
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: Text(lang.t('profile_title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
@@ -2025,17 +2600,17 @@ class ProfilePage extends StatelessWidget {
               return Row(
                 children: [
                   _StatTile(
-                      label: 'Total Jobs',
+                      label: lang.t('profile_total_jobs'),
                       value: '$total',
                       icon: Icons.assignment_outlined),
                   const SizedBox(width: 8),
                   _StatTile(
-                      label: 'Active',
+                      label: lang.t('profile_active_jobs'),
                       value: '$active',
                       icon: Icons.engineering_outlined),
                   const SizedBox(width: 8),
                   _StatTile(
-                      label: 'Completed',
+                      label: lang.t('profile_completed_jobs'),
                       value: '$completed',
                       icon: Icons.verified_outlined),
                 ],
@@ -2051,8 +2626,8 @@ class ProfilePage extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.location_on_outlined,
                       color: Color(0xFF1976D2)),
-                  title: const Text('Saved Addresses'),
-                  subtitle: const Text('Manage home, office & work addresses'),
+                  title: Text(lang.t('profile_saved_addresses')),
+                  subtitle: Text(lang.t('profile_saved_addresses_sub')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/addresses'),
                 ),
@@ -2060,7 +2635,7 @@ class ProfilePage extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.person_outline,
                       color: Color(0xFF1976D2)),
-                  title: const Text('Edit Personal Info'),
+                  title: Text(lang.t('profile_edit_personal_info')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/edit-profile'),
                 ),
@@ -2068,8 +2643,8 @@ class ProfilePage extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.support_agent,
                       color: Color(0xFF1976D2)),
-                  title: const Text('Help & Support'),
-                  subtitle: const Text('24/7 hotline, FAQs & feedback'),
+                  title: Text(lang.t('profile_help_support')),
+                  subtitle: Text(lang.t('profile_help_support_sub')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/support'),
                 ),
@@ -2077,8 +2652,8 @@ class ProfilePage extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.settings_outlined,
                       color: Color(0xFF1976D2)),
-                  title: const Text('App Settings'),
-                  subtitle: const Text('Push & email notifications, language'),
+                  title: Text(lang.t('profile_app_settings')),
+                  subtitle: Text(lang.t('profile_app_settings_sub')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.go('/settings'),
                 ),
@@ -2093,7 +2668,7 @@ class ProfilePage extends StatelessWidget {
               side: const BorderSide(color: Colors.red),
             ),
             icon: const Icon(Icons.logout),
-            label: const Text('Sign Out'),
+            label: Text(lang.t('sign_out')),
             onPressed: () => auth.signOut(),
           ),
         ],
@@ -2143,12 +2718,13 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final notif = context.watch<NotificationService>();
     final auth = context.watch<AuthState>();
+    final lang = context.watch<LanguageService>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(lang.t('settings_title'))),
       body: ListView(
         children: [
-          if (auth.loggedIn)
+          if (auth.loggedIn) ...[
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(16),
@@ -2194,13 +2770,62 @@ class SettingsPage extends StatelessWidget {
                   TextButton.icon(
                     onPressed: () => auth.signOut(),
                     icon: const Icon(Icons.logout, size: 18, color: Colors.red),
-                    label: const Text('Sign Out',
-                        style: TextStyle(color: Colors.red)),
+                    label: Text(lang.t('sign_out'),
+                        style: const TextStyle(color: Colors.red)),
                   ),
                 ],
               ),
-            )
-          else
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(lang.t('settings_notifications_header'),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1976D2))),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined),
+              title: Text(lang.t('settings_push_notifications')),
+              subtitle: Text(lang.t('settings_push_sub')),
+              value: notif.pushEnabled,
+              onChanged: (val) => notif.setPushEnabled(val),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.email_outlined),
+              title: Text(lang.t('settings_email_notifications')),
+              subtitle: Text(lang.t('settings_email_sub')),
+              value: notif.emailEnabled,
+              onChanged: (val) => notif.setEmailEnabled(val),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.send),
+                label: Text(lang.t('settings_send_test_push')),
+                onPressed: () {
+                  notif.sendTestPushNotification();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.notifications, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                                'Test Push Alert: ${notif.lastNotificationBody ?? 'Active!'}'),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF1976D2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+          ] else ...[
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
@@ -2228,22 +2853,41 @@ class SettingsPage extends StatelessWidget {
                         color: AppColors.primary),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Account & Authentication',
-                    style: TextStyle(
+                  Text(
+                    lang.t('settings_account_auth'),
+                    style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Sign in to book electrical services faster, manage addresses & track status.',
+                  Text(
+                    lang.t('settings_account_desc'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => context.push('/register'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            side: const BorderSide(
+                                color: AppColors.accent, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(lang.t('sign_up'),
+                              style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: FilledButton(
                           onPressed: () => context.push('/login'),
@@ -2253,22 +2897,7 @@ class SettingsPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text('Sign In'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => context.push('/register'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: const BorderSide(color: AppColors.accent, width: 1.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text('Sign Up',
-                              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                          child: Text(lang.t('sign_in')),
                         ),
                       ),
                     ],
@@ -2276,104 +2905,74 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Notifications Preferences',
-                style: TextStyle(
+          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text(lang.t('settings_app_preferences'),
+                style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2))),
+                    color: AppColors.primary)),
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('Push Notifications'),
-            subtitle: const Text('Receive instant booking status alerts'),
-            value: notif.pushEnabled,
-            onChanged: (val) => notif.setPushEnabled(val),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.email_outlined),
-            title: const Text('Email Notifications'),
-            subtitle: const Text('Receive invoices and status updates via email'),
-            value: notif.emailEnabled,
-            onChanged: (val) => notif.setEmailEnabled(val),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.send),
-              label: const Text('Send Test Push Notification'),
-              onPressed: () {
-                notif.sendTestPushNotification();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(Icons.notifications, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                              'Test Push Alert: ${notif.lastNotificationBody ?? 'Active!'}'),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: const Color(0xFF1976D2),
-                    behavior: SnackBarBehavior.floating,
+          if (auth.loggedIn)
+            ListTile(
+              leading: const Icon(Icons.language),
+              title: Text(lang.t('settings_language')),
+              subtitle: Text(lang.currentLanguageName),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  builder: (ctx) => ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                          title: Text(lang.t('settings_select_language'),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold))),
+                      ListTile(
+                          title: const Text('English'),
+                          trailing: lang.currentLanguageCode == 'en'
+                              ? const Icon(Icons.check, color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            lang.setLanguage('en');
+                            Navigator.pop(ctx);
+                          }),
+                      ListTile(
+                          title: const Text('Tamil (தமிழ்)'),
+                          trailing: lang.currentLanguageCode == 'ta'
+                              ? const Icon(Icons.check, color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            lang.setLanguage('ta');
+                            Navigator.pop(ctx);
+                          }),
+                      ListTile(
+                          title: const Text('Hindi (हिंदी)'),
+                          trailing: lang.currentLanguageCode == 'hi'
+                              ? const Icon(Icons.check, color: Colors.blue)
+                              : null,
+                          onTap: () {
+                            lang.setLanguage('hi');
+                            Navigator.pop(ctx);
+                          }),
+                    ],
                   ),
                 );
               },
             ),
-          ),
-
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Text('App & Preferences',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1976D2))),
-          ),
-          ListTile(
-            leading: const Icon(Icons.language),
-            title: const Text('Language'),
-            subtitle: const Text('English'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                builder: (ctx) => ListView(
-                  shrinkWrap: true,
-                  children: [
-                    const ListTile(
-                        title: Text('Select Language',
-                            style: TextStyle(fontWeight: FontWeight.bold))),
-                    ListTile(
-                        title: const Text('English (Default)'),
-                        trailing: const Icon(Icons.check, color: Colors.blue),
-                        onTap: () => Navigator.pop(ctx)),
-                    ListTile(
-                        title: const Text('Tamil (தமிழ்)'),
-                        onTap: () => Navigator.pop(ctx)),
-                    ListTile(
-                        title: const Text('Hindi (हिंदी)'),
-                        onTap: () => Navigator.pop(ctx)),
-                  ],
-                ),
-              );
-            },
-          ),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('About App'),
+            title: Text(lang.t('settings_about_app')),
             subtitle: const Text('M&S Electricals v1.0.0'),
             onTap: () {
               showAboutDialog(
                 context: context,
                 applicationName: 'M&S Electricals',
                 applicationVersion: '1.0.0',
-                applicationIcon: const Text('⚡', style: TextStyle(fontSize: 32)),
+                applicationIcon:
+                    const Text('⚡', style: TextStyle(fontSize: 32)),
                 children: [
                   const Text(
                       'Your trusted electrical service partner. Professional wiring, AC repair, lighting & emergency services.'),
@@ -2383,12 +2982,12 @@ class SettingsPage extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Privacy Policy'),
+            title: Text(lang.t('settings_privacy_policy')),
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Privacy Policy'),
+                  title: Text(lang.t('settings_privacy_policy')),
                   content: const SingleChildScrollView(
                     child: Text(
                         'M&S Electricals respects your privacy. All customer location addresses, phone numbers, and booking records are stored securely in encrypted cloud data stores and used strictly for dispatching qualified electrical technicians.'),

@@ -4,10 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/config/firestore_config.dart';
 
 /// Manages FCM push notifications and email notification preferences.
 class NotificationService extends ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirestoreConfig.db;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   bool _pushEnabled = true;

@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/config/firestore_config.dart';
 import '../../core/config/razorpay_config.dart';
 import '../../core/models/models.dart';
 import '../../core/payment/payment_handler.dart';
@@ -10,12 +11,117 @@ import '../../core/payment/payment_handler_factory.dart';
 
 /// Booking + Razorpay flow + Search/Category Filters + Booking Management.
 class BookingService extends ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirestoreConfig.db;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   PaymentHandler? _paymentHandler;
 
   String? _lastError;
   String? get lastError => _lastError;
+
+  BookingService() {
+    _seedDefaultServicesIfEmpty();
+  }
+
+  Future<void> _seedDefaultServicesIfEmpty() async {
+    // Guest users cannot write to Firestore; skip auto-seed writes if not signed in
+    if (_auth.currentUser == null) return;
+    try {
+      final snap = await _db.collection('services').limit(1).get();
+      if (snap.docs.isEmpty) {
+        debugPrint('Seeding initial default services into Firestore...');
+        final defaultServices = [
+          {
+            'title': 'Complete Home Wiring Inspection',
+            'category': 'Wiring',
+            'description':
+                'Full diagnostic inspection of circuit breakers, distribution boards, and earthing.',
+            'basePrice': 999.0,
+            'discountPercent': 10.0,
+            'durationMinutes': 90,
+            'iconEmoji': '🔌',
+            'rating': 4.9,
+            'ratingCount': 42,
+            'active': true,
+          },
+          {
+            'title': 'AC Servicing & Gas Refill',
+            'category': 'AC',
+            'description':
+                'Comprehensive split & window AC deep cleaning, filter wash, and refrigerant pressure check.',
+            'basePrice': 1499.0,
+            'discountPercent': 15.0,
+            'durationMinutes': 75,
+            'iconEmoji': '❄️',
+            'rating': 4.8,
+            'ratingCount': 88,
+            'active': true,
+          },
+          {
+            'title': 'LED Panel & Chandelier Installation',
+            'category': 'Lighting',
+            'description':
+                'Safe mounting, decorative fixture wiring, and mood light switch installation.',
+            'basePrice': 599.0,
+            'discountPercent': 0.0,
+            'durationMinutes': 45,
+            'iconEmoji': '💡',
+            'rating': 4.7,
+            'ratingCount': 35,
+            'active': true,
+          },
+          {
+            'title': 'Ceiling Fan Repair & Regulator Replace',
+            'category': 'Fan',
+            'description':
+                'Fix noisy bearings, wobbly blades, capacitor replacement, and speed regulator repair.',
+            'basePrice': 399.0,
+            'discountPercent': 5.0,
+            'durationMinutes': 40,
+            'iconEmoji': '🌀',
+            'rating': 4.8,
+            'ratingCount': 50,
+            'active': true,
+          },
+          {
+            'title': 'Emergency Short Circuit Fix (24/7)',
+            'category': 'Emergency',
+            'description':
+                'Priority emergency dispatch for tripped main fuses, burning smell, or power outages.',
+            'basePrice': 799.0,
+            'discountPercent': 0.0,
+            'durationMinutes': 45,
+            'iconEmoji': '🚨',
+            'rating': 5.0,
+            'ratingCount': 95,
+            'active': true,
+          },
+          {
+            'title': 'Switchboard & Socket Replacement',
+            'category': 'Repair',
+            'description':
+                'Replacement of damaged 6A/16A sockets, heavy appliance switches, and faceplates.',
+            'basePrice': 299.0,
+            'discountPercent': 0.0,
+            'durationMinutes': 30,
+            'iconEmoji': '🔧',
+            'rating': 4.7,
+            'ratingCount': 28,
+            'active': true,
+          },
+        ];
+
+        for (final s in defaultServices) {
+          await _db.collection('services').add({
+            ...s,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Auto-seed services non-fatal error: $e');
+    }
+  }
 
   void initRazorpay({
     required void Function(String paymentId, String? orderId) onSuccess,
@@ -181,12 +287,25 @@ class BookingService extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    final customerName = user.displayName ?? 'Customer';
+
+    // Top-level reviews collection
+    await _db.collection('reviews').add({
+      'bookingId': bookingId,
+      'serviceId': serviceId,
+      'customerUid': user.uid,
+      'customerName': customerName,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
     final reviewRef = _db.collection('services').doc(serviceId).collection('reviews').doc();
     await reviewRef.set({
       'bookingId': bookingId,
       'serviceId': serviceId,
       'customerUid': user.uid,
-      'customerName': user.displayName ?? 'Customer',
+      'customerName': customerName,
       'rating': rating,
       'comment': comment,
       'createdAt': FieldValue.serverTimestamp(),
@@ -232,18 +351,14 @@ class BookingService extends ChangeNotifier {
 
   Stream<List<Booking>> myBookings() => myBookingsFiltered();
 
-  /// Stream of services with search term and category shortcut filtering
+  /// Stream of services directly from Cloud Firestore database
   Stream<List<RasiService>> servicesFiltered({
     String? categoryFilter,
     String? searchQuery,
   }) {
     final uid = _auth.currentUser?.uid;
 
-    return _db
-        .collection('services')
-        .where('active', isEqualTo: true)
-        .snapshots()
-        .asyncMap((qs) async {
+    return _db.collection('services').snapshots().asyncMap((qs) async {
       Set<String> favIds = {};
       if (uid != null) {
         try {
@@ -258,7 +373,46 @@ class BookingService extends ChangeNotifier {
 
       var list = qs.docs
           .map((doc) => RasiService.fromDoc(doc, isFavorite: favIds.contains(doc.id)))
+          .where((s) => s.active)
           .toList();
+
+      if (categoryFilter != null &&
+          categoryFilter.isNotEmpty &&
+          categoryFilter != 'All') {
+        final cat = categoryFilter.toLowerCase();
+        list = list
+            .where((s) =>
+                s.category.toLowerCase() == cat ||
+                s.title.toLowerCase().contains(cat))
+            .toList();
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final q = searchQuery.toLowerCase().trim();
+        list = list
+            .where((s) =>
+                s.title.toLowerCase().contains(q) ||
+                s.description.toLowerCase().contains(q) ||
+                s.category.toLowerCase().contains(q))
+            .toList();
+      }
+
+      return list;
+    }).handleError((error) {
+      debugPrint('Firestore services stream error: $error');
+      return <RasiService>[];
+    });
+  }
+
+  Stream<List<RasiService>> services() => servicesFiltered();
+
+  /// Real-time stream of ALL services for Admin management (including inactive services)
+  Stream<List<RasiService>> adminServicesFiltered({
+    String? categoryFilter,
+    String? searchQuery,
+  }) {
+    return _db.collection('services').snapshots().map((qs) {
+      var list = qs.docs.map((doc) => RasiService.fromDoc(doc)).toList();
 
       if (categoryFilter != null &&
           categoryFilter.isNotEmpty &&
@@ -285,7 +439,134 @@ class BookingService extends ChangeNotifier {
     });
   }
 
-  Stream<List<RasiService>> services() => servicesFiltered();
+  /// Add a new service document reactively
+  Future<String> addService(RasiService service) async {
+    final docRef = await _db.collection('services').add({
+      ...service.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    notifyListeners();
+    return docRef.id;
+  }
+
+  /// Seed initial default electrical services into Firestore database
+  Future<void> seedDefaultServices() async {
+    final defaultServices = [
+      const RasiService(
+        id: '',
+        title: 'Complete Home Wiring Inspection',
+        category: 'Wiring',
+        description:
+            'Full diagnostic inspection of circuit breakers, distribution boards, and earthing.',
+        basePrice: 999.0,
+        discountPercent: 10.0,
+        durationMinutes: 90,
+        iconEmoji: '🔌',
+        rating: 4.9,
+        ratingCount: 42,
+        active: true,
+      ),
+      const RasiService(
+        id: '',
+        title: 'AC Servicing & Gas Refill',
+        category: 'AC',
+        description:
+            'Comprehensive split & window AC deep cleaning, filter wash, and refrigerant pressure check.',
+        basePrice: 1499.0,
+        discountPercent: 15.0,
+        durationMinutes: 75,
+        iconEmoji: '❄️',
+        rating: 4.8,
+        ratingCount: 88,
+        active: true,
+      ),
+      const RasiService(
+        id: '',
+        title: 'LED Panel & Chandelier Installation',
+        category: 'Lighting',
+        description:
+            'Safe mounting, decorative fixture wiring, and mood light switch installation.',
+        basePrice: 599.0,
+        discountPercent: 0.0,
+        durationMinutes: 45,
+        iconEmoji: '💡',
+        rating: 4.7,
+        ratingCount: 35,
+        active: true,
+      ),
+      const RasiService(
+        id: '',
+        title: 'Ceiling Fan Repair & Regulator Replace',
+        category: 'Fan',
+        description:
+            'Fix noisy bearings, wobbly blades, capacitor replacement, and speed regulator repair.',
+        basePrice: 399.0,
+        discountPercent: 5.0,
+        durationMinutes: 40,
+        iconEmoji: '🌀',
+        rating: 4.8,
+        ratingCount: 50,
+        active: true,
+      ),
+      const RasiService(
+        id: '',
+        title: 'Emergency Short Circuit Fix (24/7)',
+        category: 'Emergency',
+        description:
+            'Priority emergency dispatch for tripped main fuses, burning smell, or power outages.',
+        basePrice: 799.0,
+        discountPercent: 0.0,
+        durationMinutes: 45,
+        iconEmoji: '🚨',
+        rating: 5.0,
+        ratingCount: 95,
+        active: true,
+      ),
+      const RasiService(
+        id: '',
+        title: 'Switchboard & Socket Replacement',
+        category: 'Repair',
+        description:
+            'Replacement of damaged 6A/16A sockets, heavy appliance switches, and faceplates.',
+        basePrice: 299.0,
+        discountPercent: 0.0,
+        durationMinutes: 30,
+        iconEmoji: '🔧',
+        rating: 4.7,
+        ratingCount: 28,
+        active: true,
+      ),
+    ];
+
+    for (final s in defaultServices) {
+      await addService(s);
+    }
+  }
+
+  /// Update an existing service document reactively
+  Future<void> updateService(RasiService service) async {
+    await _db.collection('services').doc(service.id).update({
+      ...service.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    notifyListeners();
+  }
+
+  /// Delete a service document reactively
+  Future<void> deleteService(String serviceId) async {
+    await _db.collection('services').doc(serviceId).delete();
+    notifyListeners();
+  }
+
+  /// Toggle active state of a service document reactively
+  Future<void> toggleServiceActive(String serviceId, bool active) async {
+    await _db.collection('services').doc(serviceId).update({
+      'active': active,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    notifyListeners();
+  }
 
   /// Toggle service favorite state
   Future<void> toggleFavorite(String serviceId, bool currentlyFavorite) async {

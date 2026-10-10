@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../core/config/firestore_config.dart';
 import '../../core/models/models.dart';
 import 'booking_service.dart';
 
@@ -273,7 +274,7 @@ class BookingDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Booking Details')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
+        stream: FirestoreConfig.db
             .collection('bookings')
             .doc(bookingId)
             .snapshots(),

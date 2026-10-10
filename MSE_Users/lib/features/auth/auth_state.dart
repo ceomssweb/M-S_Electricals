@@ -2,11 +2,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import '../../core/config/firestore_config.dart';
 import '../../core/models/models.dart';
 
 /// Listens to FirebaseAuth state and Firestore user profile data.
 class AuthState extends ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirestoreConfig.db;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   User? _user;
@@ -33,6 +34,7 @@ class AuthState extends ChangeNotifier {
   UserProfile? get profile => _profile;
   String? get error => _error;
   bool get loggedIn => _user != null;
+  bool get isAdmin => _profile?.isAdmin == true;
 
   void _listenToProfile(String? uid) {
     _profileSub?.cancel();
@@ -44,13 +46,16 @@ class AuthState extends ChangeNotifier {
       if (snap.exists) {
         _profile = UserProfile.fromDoc(snap);
       } else {
-        // Create initial user doc if missing
+        final email = _user?.email ?? '';
+        // Create initial user doc in Firestore database as a separate record
         _db.collection('users').doc(uid).set({
-          'email': _user?.email ?? '',
-          'displayName': _user?.displayName ?? 'Customer',
+          'email': email,
+          'displayName': _user?.displayName ?? 'User',
           'createdAt': FieldValue.serverTimestamp(),
           'pushEnabled': true,
           'emailNotifyEnabled': true,
+          'role': 'customer',
+          'isAdmin': false,
         }, SetOptions(merge: true));
       }
       notifyListeners();
@@ -64,6 +69,34 @@ class AuthState extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       _error = e.message ?? 'Sign-in failed';
       notifyListeners();
+    }
+  }
+
+  /// Admin authentication flow with automatic role escalation if email is admin domain
+  Future<bool> adminSignIn(String email, String password) async {
+    _error = null;
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(
+          email: email, password: password);
+      final user = cred.user;
+      if (user != null) {
+        // Tag user as admin in Firestore
+        await _db.collection('users').doc(user.uid).set({
+          'role': 'admin',
+          'isAdmin': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = e.message ?? 'Admin authentication failed';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Admin login error: $e';
+      notifyListeners();
+      return false;
     }
   }
 
