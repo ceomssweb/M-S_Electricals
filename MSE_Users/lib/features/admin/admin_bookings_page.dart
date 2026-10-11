@@ -18,6 +18,7 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
     'All',
     'pending',
     'confirmed',
+    'assigned',
     'in_progress',
     'completed',
     'cancelled',
@@ -193,6 +194,24 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
                                 ),
                               ],
                             ),
+                            if (b.assignedProviderName != null &&
+                                b.assignedProviderName!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Icon(Icons.engineering_outlined,
+                                      size: 16, color: Color(0xFFEE5922)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Assigned Technician: ${b.assignedProviderName}',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFEE5922)),
+                                  ),
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 14),
 
                             // Actions Bar
@@ -218,7 +237,7 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
                                         horizontal: 12, vertical: 6),
                                   ),
                                   icon: const Icon(Icons.edit, size: 16),
-                                  label: const Text('Update Status'),
+                                  label: const Text('Update & Assign'),
                                   onPressed: () =>
                                       _showStatusUpdateDialog(context, b),
                                 ),
@@ -239,7 +258,9 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
   }
 
   void _showStatusUpdateDialog(BuildContext context, Booking b) {
-    BookingStatus current = b.status;
+    BookingStatus currentStatus = b.status;
+    String? selectedProviderUid = b.assignedProviderUid;
+    String? selectedProviderName = b.assignedProviderName;
 
     showDialog(
       context: context,
@@ -256,7 +277,7 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
               const Text('Select New Status:'),
               const SizedBox(height: 6),
               DropdownButtonFormField<BookingStatus>(
-                value: current,
+                value: currentStatus,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding:
@@ -271,11 +292,86 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
                 onChanged: (val) {
                   if (val != null) {
                     setDialogState(() {
-                      current = val;
+                      currentStatus = val;
                     });
                   }
                 },
               ),
+
+              // Skill-Based Provider Assignment Section
+              if (currentStatus == BookingStatus.assigned ||
+                  currentStatus == BookingStatus.inProgress) ...[
+                const SizedBox(height: 16),
+                const Text('Assign Certified Service Provider:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF0F2C59))),
+                const SizedBox(height: 6),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirestoreConfig.db
+                      .collection('providers')
+                      .where('verificationStatus', isEqualTo: 'verified')
+                      .snapshots(),
+                  builder: (context, snap) {
+                    if (!snap.hasData) {
+                      return const SizedBox(
+                          height: 20,
+                          child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2)));
+                    }
+
+                    // Self-Booking Protection Rule: Exclude the provider who booked the service!
+                    var eligibleProviders = snap.data!.docs
+                        .map((d) => ServiceProviderProfile.fromDoc(d))
+                        .where((p) => p.uid != b.customerUid)
+                        .toList();
+
+                    if (eligibleProviders.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No verified eligible providers available (or provider self-booking exclusion active).',
+                          style: TextStyle(fontSize: 11, color: Colors.red),
+                        ),
+                      );
+                    }
+
+                    return DropdownButtonFormField<String>(
+                      value: eligibleProviders
+                              .any((p) => p.uid == selectedProviderUid)
+                          ? selectedProviderUid
+                          : eligibleProviders.first.uid,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: eligibleProviders.map((p) {
+                        final skillsJoined = p.skills.join(', ');
+                        return DropdownMenuItem(
+                          value: p.uid,
+                          child: Text(
+                            '⚡ ${p.displayName} (${p.experienceYears} yrs) • $skillsJoined',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          final selected = eligibleProviders
+                              .firstWhere((p) => p.uid == val);
+                          setDialogState(() {
+                            selectedProviderUid = selected.uid;
+                            selectedProviderName = selected.displayName;
+                          });
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -290,17 +386,27 @@ class _AdminBookingsPageState extends State<AdminBookingsPage> {
             ),
             onPressed: () async {
               Navigator.pop(ctx);
+              final payload = <String, dynamic>{
+                'status': currentStatus.wireValue,
+                'updatedAt': FieldValue.serverTimestamp(),
+              };
+
+              if (currentStatus == BookingStatus.assigned &&
+                  selectedProviderUid != null) {
+                payload['assignedProviderUid'] = selectedProviderUid;
+                payload['assignedProviderName'] = selectedProviderName;
+              }
+
               await FirestoreConfig.db
                   .collection('bookings')
                   .doc(b.id)
-                  .update({
-                'status': current.wireValue,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
+                  .update(payload);
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Booking updated to ${current.label}'),
+                    content: Text(
+                        'Booking status updated to ${currentStatus.label}!'),
                     backgroundColor: const Color(0xFF0F2C59),
                   ),
                 );

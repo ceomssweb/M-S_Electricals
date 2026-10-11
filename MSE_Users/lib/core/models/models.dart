@@ -63,43 +63,129 @@ class UserProfile {
   final String email;
   final String displayName;
   final String phoneNumber;
+  final String role; // 'customer', 'provider', 'admin'
   final String? photoUrl;
   final bool pushEnabled;
   final bool emailNotifyEnabled;
   final String? fcmToken;
   final DateTime? createdAt;
   final bool isAdmin;
+  final bool isProvider;
+  final String verificationStatus; // 'pending', 'verified', 'rejected'
 
   const UserProfile({
     required this.uid,
     required this.email,
     required this.displayName,
     this.phoneNumber = '',
+    this.role = 'customer',
     this.photoUrl,
     this.pushEnabled = true,
     this.emailNotifyEnabled = true,
     this.fcmToken,
     this.createdAt,
     this.isAdmin = false,
+    this.isProvider = false,
+    this.verificationStatus = 'verified',
   });
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
-    final role = (d['role'] ?? '') as String;
+    final roleVal = (d['role'] ?? 'customer') as String;
     final boolIsAdmin = (d['isAdmin'] ?? false) as bool;
-    final isAdminUser = boolIsAdmin || role.toLowerCase() == 'admin';
+    final isAdminUser = boolIsAdmin || roleVal.toLowerCase() == 'admin';
+    final isProviderUser = roleVal.toLowerCase() == 'provider';
 
     return UserProfile(
       uid: doc.id,
       email: (d['email'] ?? '') as String,
       displayName: (d['displayName'] ?? '') as String,
       phoneNumber: (d['phoneNumber'] ?? '') as String,
+      role: roleVal,
       photoUrl: d['photoUrl'] as String?,
       pushEnabled: (d['pushEnabled'] ?? true) as bool,
       emailNotifyEnabled: (d['emailNotifyEnabled'] ?? true) as bool,
       fcmToken: d['fcmToken'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       isAdmin: isAdminUser,
+      isProvider: isProviderUser,
+      verificationStatus: (d['verificationStatus'] ?? 'verified') as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'email': email,
+        'displayName': displayName,
+        'phoneNumber': phoneNumber,
+        'role': role,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        'pushEnabled': pushEnabled,
+        'emailNotifyEnabled': emailNotifyEnabled,
+        if (fcmToken != null) 'fcmToken': fcmToken,
+        'isAdmin': isAdmin,
+        'verificationStatus': verificationStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+}
+
+/// Extended Service Provider Profile for electricians and technicians.
+class ServiceProviderProfile {
+  final String uid;
+  final String email;
+  final String displayName;
+  final String phoneNumber;
+  final String? photoUrl;
+  final List<String> skills;
+  final int experienceYears;
+  final String panNumber;
+  final String aadharNumber;
+  final String? panPhotoUrl;
+  final String? aadharPhotoUrl;
+  final String verificationStatus; // 'pending', 'verified', 'rejected'
+  final bool isAvailable;
+  final DateTime createdAt;
+
+  const ServiceProviderProfile({
+    required this.uid,
+    required this.email,
+    required this.displayName,
+    required this.phoneNumber,
+    this.photoUrl,
+    required this.skills,
+    required this.experienceYears,
+    required this.panNumber,
+    required this.aadharNumber,
+    this.panPhotoUrl,
+    this.aadharPhotoUrl,
+    this.verificationStatus = 'pending',
+    this.isAvailable = true,
+    required this.createdAt,
+  });
+
+  factory ServiceProviderProfile.fromDoc(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data() ?? {};
+    final skillsRaw = d['skills'];
+    List<String> skillsList = [];
+    if (skillsRaw is List) {
+      skillsList = skillsRaw.map((s) => s.toString()).toList();
+    }
+
+    return ServiceProviderProfile(
+      uid: doc.id,
+      email: (d['email'] ?? '') as String,
+      displayName: (d['displayName'] ?? '') as String,
+      phoneNumber: (d['phoneNumber'] ?? '') as String,
+      photoUrl: d['photoUrl'] as String?,
+      skills: skillsList,
+      experienceYears: ((d['experienceYears'] ?? 0) as num).toInt(),
+      panNumber: (d['panNumber'] ?? '') as String,
+      aadharNumber: (d['aadharNumber'] ?? '') as String,
+      panPhotoUrl: d['panPhotoUrl'] as String?,
+      aadharPhotoUrl: d['aadharPhotoUrl'] as String?,
+      verificationStatus: (d['verificationStatus'] ?? 'pending') as String,
+      isAvailable: (d['isAvailable'] ?? true) as bool,
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -108,10 +194,14 @@ class UserProfile {
         'displayName': displayName,
         'phoneNumber': phoneNumber,
         if (photoUrl != null) 'photoUrl': photoUrl,
-        'pushEnabled': pushEnabled,
-        'emailNotifyEnabled': emailNotifyEnabled,
-        if (fcmToken != null) 'fcmToken': fcmToken,
-        'isAdmin': isAdmin,
+        'skills': skills,
+        'experienceYears': experienceYears,
+        'panNumber': panNumber,
+        'aadharNumber': aadharNumber,
+        if (panPhotoUrl != null) 'panPhotoUrl': panPhotoUrl,
+        if (aadharPhotoUrl != null) 'aadharPhotoUrl': aadharPhotoUrl,
+        'verificationStatus': verificationStatus,
+        'isAvailable': isAvailable,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 }
@@ -338,6 +428,7 @@ class Booking {
   final double amount;
   final BookingStatus status;
   final String? assignedProviderUid;
+  final String? assignedProviderName;
   final String? razorpayOrderId;
   final String? razorpayPaymentId;
   final bool paid;
@@ -363,6 +454,7 @@ class Booking {
     required this.createdAt,
     this.notes,
     this.assignedProviderUid,
+    this.assignedProviderName,
     this.razorpayOrderId,
     this.razorpayPaymentId,
     this.cancelReason,
@@ -387,6 +479,7 @@ class Booking {
       amount: ((d['amount'] ?? 0) as num).toDouble(),
       status: BookingStatus.fromString(d['status'] as String?),
       assignedProviderUid: d['assignedProviderUid'] as String?,
+      assignedProviderName: d['assignedProviderName'] as String?,
       razorpayOrderId: d['razorpayOrderId'] as String?,
       razorpayPaymentId: d['razorpayPaymentId'] as String?,
       paid: (d['paid'] ?? false) as bool,
@@ -412,6 +505,8 @@ class Booking {
         'status': status.wireValue,
         if (assignedProviderUid != null)
           'assignedProviderUid': assignedProviderUid,
+        if (assignedProviderName != null)
+          'assignedProviderName': assignedProviderName,
         if (razorpayOrderId != null) 'razorpayOrderId': razorpayOrderId,
         if (razorpayPaymentId != null) 'razorpayPaymentId': razorpayPaymentId,
         'paid': paid,

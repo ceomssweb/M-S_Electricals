@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -76,18 +78,6 @@ class RasiCustomerApp extends StatelessWidget {
   }
 }
 
-class AppColors {
-  static const Color primary = Color(0xFF0F2C59);       // Deep Navy Blue
-  static const Color primaryLight = Color(0xFF1E3A8A);  // Medium Navy
-  static const Color accent = Color(0xFFEE5922);        // Electric Orange
-  static const Color accentLight = Color(0xFFFFF1EB);   // Soft Orange Tint
-  static const Color background = Color(0xFFF8FAFC);    // Off-white
-  static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF1E293B);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color border = Color(0xFFE2E8F0);
-}
-
 ThemeData _buildTheme() => AppTheme.buildTheme();
 
 GoRouter _buildRouter(AuthState auth) => GoRouter(
@@ -134,6 +124,9 @@ GoRouter _buildRouter(AuthState auth) => GoRouter(
             GoRoute(
                 path: '/bookings',
                 builder: (_, __) => const MyBookingsPage()),
+            GoRoute(
+                path: '/provider/jobs',
+                builder: (_, __) => const ProviderJobsPage()),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
             GoRoute(
                 path: '/settings', builder: (_, __) => const SettingsPage()),
@@ -503,15 +496,129 @@ class _RegisterPageState extends State<RegisterPage> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _pwd = TextEditingController();
+  final _phone = TextEditingController();
+  final _experience = TextEditingController(text: '3');
+  final _panNumber = TextEditingController();
+  final _aadharNumber = TextEditingController();
+
+  String _selectedRole = 'customer'; // 'customer' or 'provider'
+  final List<String> _selectedSkills = ['Wiring'];
+  String? _panPhotoBase64;
+  String? _aadharPhotoBase64;
   bool _busy = false;
   bool _obscurePassword = true;
+
+  static const _availableSkills = [
+    'Wiring',
+    'Lighting',
+    'AC',
+    'Fan',
+    'Repair',
+    'Inspection',
+    'Emergency',
+  ];
 
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _pwd.dispose();
+    _phone.dispose();
+    _experience.dispose();
+    _panNumber.dispose();
+    _aadharNumber.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDocumentImage(bool isPan) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 70,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        final base64Uri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() {
+          if (isPan) {
+            _panPhotoBase64 = base64Uri;
+          } else {
+            _aadharPhotoBase64 = base64Uri;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking document image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    final nameVal = _name.text.trim();
+    final emailVal = _email.text.trim();
+    final pwdVal = _pwd.text.trim();
+
+    if (nameVal.isEmpty || emailVal.isEmpty || pwdVal.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields.')),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    final auth = context.read<AuthState>();
+
+    try {
+      if (_selectedRole == 'customer') {
+        await auth.registerWithEmail(emailVal, pwdVal, nameVal);
+      } else {
+        if (_panNumber.text.trim().isEmpty || _aadharNumber.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('PAN and Aadhar card details are mandatory.')),
+          );
+          setState(() => _busy = false);
+          return;
+        }
+
+        await auth.registerProviderWithEmail(
+          email: emailVal,
+          password: pwdVal,
+          displayName: nameVal,
+          phoneNumber: _phone.text.trim(),
+          skills: _selectedSkills,
+          experienceYears: int.tryParse(_experience.text.trim()) ?? 1,
+          panNumber: _panNumber.text.trim(),
+          aadharNumber: _aadharNumber.text.trim(),
+          panPhotoUrl: _panPhotoBase64,
+          aadharPhotoUrl: _aadharPhotoBase64,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Provider account created! Pending Admin document verification.'),
+              backgroundColor: AppColors.primary,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Registration error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -539,195 +646,381 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                 child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Image.asset(
-                    'lib/assets/logo/M&S.PNG',
-                    height: 70,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'M&S Electricals',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Image.asset(
+                        'lib/assets/logo/M&S.PNG',
+                        height: 70,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'M&S Electricals',
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Create Account',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Join M&S Electricals for expert electrical services',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                ),
-                const SizedBox(height: 28),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Create Account',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Join M&S Electricals as a Customer or Service Provider',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 14),
+                    ),
+                    const SizedBox(height: 24),
 
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                    // Role Selector Toggle
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _name,
-                        decoration: InputDecoration(
-                          labelText: 'Full Name',
-                          hintText: 'John Doe',
-                          prefixIcon: const Icon(Icons.person_outlined, color: AppColors.primary),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _email,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          labelText: 'Email Address',
-                          hintText: 'name@example.com',
-                          prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _pwd,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: 'Password (min 6 chars)',
-                          prefixIcon: const Icon(Icons.lock_outlined, color: AppColors.primary),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.textSecondary,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                          ),
-                        ),
-                      ),
-                      if (auth.error != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedRole = 'customer'),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _selectedRole == 'customer'
+                                      ? AppColors.primary
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 child: Text(
-                                  auth.error!,
-                                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                                  '👤 Customer',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedRole == 'customer'
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: _busy
-                              ? null
-                              : () async {
-                                  setState(() => _busy = true);
-                                  await auth.registerWithEmail(
-                                      _email.text.trim(), _pwd.text, _name.text.trim());
-                                  if (mounted) setState(() => _busy = false);
-                                },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: _busy
-                              ? const SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2.5),
-                                )
-                              : const Text(
-                                  'Create Account',
-                                  style: TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.bold),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedRole = 'provider'),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _selectedRole == 'provider'
+                                      ? AppColors.primary
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                        ),
+                                child: Text(
+                                  '⚡ Service Provider',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedRole == 'provider'
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: _name,
+                            decoration: AppStyles.inputDecoration(
+                              labelText: 'Full Name',
+                              hintText: 'John Doe',
+                              prefixIcon: const Icon(Icons.person_outlined,
+                                  color: AppColors.primary),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _email,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: AppStyles.inputDecoration(
+                              labelText: 'Email Address',
+                              hintText: 'name@example.com',
+                              prefixIcon: const Icon(Icons.email_outlined,
+                                  color: AppColors.primary),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _pwd,
+                            obscureText: _obscurePassword,
+                            decoration: AppStyles.inputDecoration(
+                              labelText: 'Password (min 6 chars)',
+                              prefixIcon: const Icon(Icons.lock_outlined,
+                                  color: AppColors.primary),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                  color: AppColors.textSecondary,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+
+                          // Extra Provider Fields
+                          if (_selectedRole == 'provider') ...[
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _phone,
+                              keyboardType: TextInputType.phone,
+                              decoration: AppStyles.inputDecoration(
+                                labelText: 'Phone Number',
+                                hintText: '+91 9876543210',
+                                prefixIcon: const Icon(Icons.phone_outlined,
+                                    color: AppColors.primary),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _experience,
+                              keyboardType: TextInputType.number,
+                              decoration: AppStyles.inputDecoration(
+                                labelText: 'Experience Years',
+                                hintText: '3',
+                                prefixIcon: const Icon(
+                                    Icons.work_history_outlined,
+                                    color: AppColors.primary),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // PAN Number + Upload PAN Button Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 6,
+                                  child: TextField(
+                                    controller: _panNumber,
+                                    decoration: AppStyles.inputDecoration(
+                                      labelText: 'PAN Card Number *',
+                                      hintText: 'ABCDE1234F',
+                                      prefixIcon: const Icon(
+                                          Icons.badge_outlined,
+                                          color: AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 4,
+                                  child: SizedBox(
+                                    height: 50,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8),
+                                        side: BorderSide(
+                                          color: _panPhotoBase64 != null
+                                              ? Colors.green
+                                              : AppColors.border,
+                                        ),
+                                      ),
+                                      icon: Icon(
+                                        _panPhotoBase64 != null
+                                            ? Icons.check_circle
+                                            : Icons.upload_file,
+                                        color: _panPhotoBase64 != null
+                                            ? Colors.green
+                                            : AppColors.primary,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        _panPhotoBase64 != null
+                                            ? 'PAN Attached'
+                                            : 'Upload PAN',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: _panPhotoBase64 != null
+                                              ? Colors.green
+                                              : AppColors.primary,
+                                        ),
+                                      ),
+                                      onPressed: () => _pickDocumentImage(true),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+                            // Aadhar Number + Upload Aadhar Button Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 6,
+                                  child: TextField(
+                                    controller: _aadharNumber,
+                                    keyboardType: TextInputType.number,
+                                    decoration: AppStyles.inputDecoration(
+                                      labelText: 'Aadhar Card Number *',
+                                      hintText: '1234 5678 9012',
+                                      prefixIcon: const Icon(
+                                          Icons.fingerprint_outlined,
+                                          color: AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 4,
+                                  child: SizedBox(
+                                    height: 50,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8),
+                                        side: BorderSide(
+                                          color: _aadharPhotoBase64 != null
+                                              ? Colors.green
+                                              : AppColors.border,
+                                        ),
+                                      ),
+                                      icon: Icon(
+                                        _aadharPhotoBase64 != null
+                                            ? Icons.check_circle
+                                            : Icons.upload_file,
+                                        color: _aadharPhotoBase64 != null
+                                            ? Colors.green
+                                            : AppColors.primary,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        _aadharPhotoBase64 != null
+                                            ? 'Aadhar Attached'
+                                            : 'Upload Aadhar',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: _aadharPhotoBase64 != null
+                                              ? Colors.green
+                                              : AppColors.primary,
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _pickDocumentImage(false),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          if (auth.error != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.red.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                      color: Colors.red, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      auth.error!,
+                                      style: const TextStyle(
+                                          color: Colors.red, fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            height: 52,
+                            child: FilledButton(
+                              style: AppStyles.filledButton,
+                              onPressed: _busy ? null : _handleRegister,
+                              child: _busy
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2.5),
+                                    )
+                                  : Text(
+                                      _selectedRole == 'provider'
+                                          ? 'Register as Provider'
+                                          : 'Create Customer Account',
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -844,8 +1137,9 @@ class _HomeShellState extends State<HomeShell> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      Navigator.pop(ctx);
-                      context.push('/register');
+                      final nav = GoRouter.of(context);
+                      Navigator.of(ctx).pop();
+                      nav.push('/register');
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.accent,
@@ -864,8 +1158,9 @@ class _HomeShellState extends State<HomeShell> {
                 Expanded(
                   child: FilledButton(
                     onPressed: () {
-                      Navigator.pop(ctx);
-                      context.push('/login');
+                      final nav = GoRouter.of(context);
+                      Navigator.of(ctx).pop();
+                      nav.push('/login');
                     },
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -899,8 +1194,26 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   List<(String, IconData, IconData, String)> _activeTabs(
-      bool loggedIn, LanguageService lang) {
+      bool loggedIn, bool isProvider, LanguageService lang) {
     if (loggedIn) {
+      if (isProvider) {
+        return [
+          (
+            '/provider/jobs',
+            Icons.engineering_outlined,
+            Icons.engineering,
+            'Job Management'
+          ),
+          ('/home', Icons.home_outlined, Icons.home, lang.t('nav_home')),
+          ('/profile', Icons.person_outline, Icons.person, lang.t('nav_profile')),
+          (
+            '/settings',
+            Icons.settings_outlined,
+            Icons.settings,
+            lang.t('nav_settings')
+          ),
+        ];
+      }
       return [
         ('/home', Icons.home_outlined, Icons.home, lang.t('nav_home')),
         (
@@ -934,7 +1247,7 @@ class _HomeShellState extends State<HomeShell> {
     final auth = context.watch<AuthState>();
     final lang = context.watch<LanguageService>();
     final loc = GoRouterState.of(context).matchedLocation;
-    final activeTabs = _activeTabs(auth.loggedIn, lang);
+    final activeTabs = _activeTabs(auth.loggedIn, auth.isProvider, lang);
     final idx = _indexFor(loc, activeTabs);
     return Scaffold(
       body: widget.child,
@@ -1732,20 +2045,22 @@ class _ServiceCard extends StatelessWidget {
                                         actions: [
                                           TextButton(
                                             onPressed: () =>
-                                                Navigator.pop(ctx),
+                                                Navigator.of(ctx).pop(),
                                             child: const Text('Cancel'),
                                           ),
                                           OutlinedButton(
                                             onPressed: () {
-                                              Navigator.pop(ctx);
-                                              context.push('/register');
+                                              final nav = GoRouter.of(context);
+                                              Navigator.of(ctx).pop();
+                                              nav.push('/register');
                                             },
                                             child: const Text('Sign Up'),
                                           ),
                                           FilledButton(
                                             onPressed: () {
-                                              Navigator.pop(ctx);
-                                              context.push('/login');
+                                              final nav = GoRouter.of(context);
+                                              Navigator.of(ctx).pop();
+                                              nav.push('/login');
                                             },
                                             child: const Text('Sign In'),
                                           ),
@@ -3218,6 +3533,298 @@ class SettingsPage extends StatelessWidget {
             title: const Text('Terms & Conditions'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/terms-conditions'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// PROVIDER JOBS WORKSPACE ----------------------------------------------------
+
+class ProviderJobsPage extends StatefulWidget {
+  const ProviderJobsPage({super.key});
+
+  @override
+  State<ProviderJobsPage> createState() => _ProviderJobsPageState();
+}
+
+class _ProviderJobsPageState extends State<ProviderJobsPage> {
+  String _selectedFilter = 'All';
+  final List<String> _filters = ['All', 'assigned', 'in_progress', 'completed'];
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    final uid = auth.user?.uid;
+    final dateFormat = DateFormat('EEE, dd MMM yyyy • hh:mm a');
+
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Job Management')),
+        body: const Center(
+            child: Text('Please sign in to view assigned jobs.')),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Job Management Workspace'),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          // Filter Chips
+          SizedBox(
+            height: 48,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              scrollDirection: Axis.horizontal,
+              itemCount: _filters.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final filter = _filters[i];
+                final isSelected = _selectedFilter == filter;
+                final label = filter == 'All'
+                    ? 'All'
+                    : (filter == 'assigned'
+                        ? 'Assigned'
+                        : (filter == 'in_progress'
+                            ? 'In Progress'
+                            : 'Completed'));
+
+                return ChoiceChip(
+                  label: Text(label),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  onSelected: (_) => setState(() => _selectedFilter = filter),
+                );
+              },
+            ),
+          ),
+
+          // Provider Jobs Stream
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirestoreConfig.db
+                  .collection('bookings')
+                  .where('assignedProviderUid', isEqualTo: uid)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return const Center(
+                      child: Text('Error loading assigned jobs.'));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                var bookings = snap.data!.docs
+                    .map((d) => Booking.fromDoc(d))
+                    .toList();
+
+                if (_selectedFilter != 'All') {
+                  bookings = bookings
+                      .where((b) => b.status.wireValue == _selectedFilter)
+                      .toList();
+                }
+
+                if (bookings.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.engineering_outlined,
+                            size: 64, color: AppColors.textSecondary),
+                        SizedBox(height: 12),
+                        Text('No assigned jobs found in this filter.',
+                            style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 15)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: bookings.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) {
+                    final b = bookings[i];
+
+                    return Container(
+                      decoration: AppStyles.cardDecoration,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.electrical_services,
+                                      color: AppColors.primary, size: 24),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        b.serviceTitle,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.textPrimary),
+                                      ),
+                                      Text(
+                                        'Job ID: #${b.id.substring(0, 8)}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    b.status.label,
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 20),
+
+                            // Scheduled Time & Address
+                            Row(
+                              children: [
+                                const Icon(Icons.event,
+                                    size: 16, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  dateFormat.format(b.scheduledAt),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textPrimary),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on,
+                                    size: 16, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    b.addressLine,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Job Action Controls
+                            Row(
+                              children: [
+                                Text(
+                                  'Payout: ₹${b.amount.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary),
+                                ),
+                                const Spacer(),
+                                if (b.status == BookingStatus.assigned) ...[
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                    ),
+                                    onPressed: () async {
+                                      await FirestoreConfig.db
+                                          .collection('bookings')
+                                          .doc(b.id)
+                                          .update({
+                                        'status':
+                                            BookingStatus.inProgress.wireValue,
+                                        'updatedAt':
+                                            FieldValue.serverTimestamp(),
+                                      });
+                                    },
+                                    child: const Text('Start Job'),
+                                  ),
+                                ] else if (b.status ==
+                                    BookingStatus.inProgress) ...[
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.success,
+                                    ),
+                                    onPressed: () async {
+                                      await FirestoreConfig.db
+                                          .collection('bookings')
+                                          .doc(b.id)
+                                          .update({
+                                        'status':
+                                            BookingStatus.completed.wireValue,
+                                        'paid': true,
+                                        'completedAt':
+                                            FieldValue.serverTimestamp(),
+                                        'updatedAt':
+                                            FieldValue.serverTimestamp(),
+                                      });
+                                    },
+                                    child: const Text('Complete Job'),
+                                  ),
+                                ] else if (b.status ==
+                                    BookingStatus.completed) ...[
+                                  const Icon(Icons.check_circle,
+                                      color: AppColors.success),
+                                  const SizedBox(width: 4),
+                                  const Text('Completed',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.success)),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),

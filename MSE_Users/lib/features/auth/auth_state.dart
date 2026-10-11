@@ -35,6 +35,10 @@ class AuthState extends ChangeNotifier {
   String? get error => _error;
   bool get loggedIn => _user != null;
   bool get isAdmin => _profile?.isAdmin == true;
+  bool get isProvider => _profile?.isProvider == true;
+  bool get isVerifiedProvider =>
+      _profile?.isProvider == true &&
+      _profile?.verificationStatus == 'verified';
 
   void _listenToProfile(String? uid) {
     _profileSub?.cancel();
@@ -72,7 +76,7 @@ class AuthState extends ChangeNotifier {
     }
   }
 
-  /// Admin authentication flow with automatic role escalation if email is admin domain
+  /// Admin authentication flow
   Future<bool> adminSignIn(String email, String password) async {
     _error = null;
     try {
@@ -80,7 +84,7 @@ class AuthState extends ChangeNotifier {
           email: email, password: password);
       final user = cred.user;
       if (user != null) {
-        // Tag user as admin in Firestore
+        // Ensure user document in Firestore database has role set to admin
         await _db.collection('users').doc(user.uid).set({
           'role': 'admin',
           'isAdmin': true,
@@ -100,6 +104,7 @@ class AuthState extends ChangeNotifier {
     }
   }
 
+  /// Standard Customer Registration
   Future<void> registerWithEmail(
       String email, String password, String displayName) async {
     _error = null;
@@ -112,6 +117,7 @@ class AuthState extends ChangeNotifier {
         await _db.collection('users').doc(cred.user!.uid).set({
           'email': email,
           'displayName': displayName,
+          'role': 'customer',
           'pushEnabled': true,
           'emailNotifyEnabled': true,
           'createdAt': FieldValue.serverTimestamp(),
@@ -119,6 +125,67 @@ class AuthState extends ChangeNotifier {
       }
     } on FirebaseAuthException catch (e) {
       _error = e.message ?? 'Registration failed';
+      notifyListeners();
+    }
+  }
+
+  /// Service Provider Registration with skills, experience, PAN, Aadhar & photo documents
+  Future<void> registerProviderWithEmail({
+    required String email,
+    required String password,
+    required String displayName,
+    required String phoneNumber,
+    required List<String> skills,
+    required int experienceYears,
+    required String panNumber,
+    required String aadharNumber,
+    String? photoUrl,
+    String? panPhotoUrl,
+    String? aadharPhotoUrl,
+  }) async {
+    _error = null;
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+          email: email, password: password);
+      await cred.user?.updateDisplayName(displayName);
+
+      if (cred.user != null) {
+        final uid = cred.user!.uid;
+
+        // User document in `users/{uid}`
+        await _db.collection('users').doc(uid).set({
+          'email': email,
+          'displayName': displayName,
+          'phoneNumber': phoneNumber,
+          'role': 'provider',
+          'verificationStatus': 'pending',
+          'pushEnabled': true,
+          'emailNotifyEnabled': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // Detailed provider document in `providers/{uid}`
+        await _db.collection('providers').doc(uid).set({
+          'email': email,
+          'displayName': displayName,
+          'phoneNumber': phoneNumber,
+          if (photoUrl != null) 'photoUrl': photoUrl,
+          'skills': skills,
+          'experienceYears': experienceYears,
+          'panNumber': panNumber,
+          'aadharNumber': aadharNumber,
+          if (panPhotoUrl != null) 'panPhotoUrl': panPhotoUrl,
+          if (aadharPhotoUrl != null) 'aadharPhotoUrl': aadharPhotoUrl,
+          'verificationStatus': 'pending',
+          'isAvailable': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      _error = e.message ?? 'Provider registration failed';
+      notifyListeners();
+    } catch (e) {
+      _error = 'Error registering provider: $e';
       notifyListeners();
     }
   }

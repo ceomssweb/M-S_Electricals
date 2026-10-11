@@ -10,7 +10,9 @@ import 'features/admin/admin_bookings_page.dart';
 import 'features/admin/admin_dashboard.dart';
 import 'features/admin/admin_feedback_page.dart';
 import 'features/admin/admin_login_page.dart';
+import 'features/admin/admin_providers_page.dart';
 import 'features/admin/admin_services_page.dart';
+import 'features/admin/admin_skills_page.dart';
 import 'features/admin/admin_users_page.dart';
 import 'features/auth/auth_state.dart';
 import 'features/booking/booking_service.dart';
@@ -105,6 +107,14 @@ GoRouter _buildAdminRouter(AuthState auth) => GoRouter(
               builder: (_, __) => const AdminBookingsPage(),
             ),
             GoRoute(
+              path: '/admin/providers',
+              builder: (_, __) => const AdminProvidersPage(),
+            ),
+            GoRoute(
+              path: '/admin/skills',
+              builder: (_, __) => const AdminSkillsPage(),
+            ),
+            GoRoute(
               path: '/admin/users',
               builder: (_, __) => const AdminUsersPage(),
             ),
@@ -131,6 +141,9 @@ class _AdminNavBarShell extends StatelessWidget {
         Icons.electrical_services, 'Services'),
     ('/admin/bookings', Icons.assignment_outlined, Icons.assignment,
         'Bookings'),
+    ('/admin/providers', Icons.engineering_outlined, Icons.engineering,
+        'Providers'),
+    ('/admin/skills', Icons.psychology_outlined, Icons.psychology, 'Skills'),
     ('/admin/users', Icons.people_outline, Icons.people, 'Users'),
     ('/admin/analytics', Icons.analytics_outlined, Icons.analytics,
         'Analytics'),
